@@ -14,11 +14,13 @@ import TenantsPage from "@/pages/admin/tenants-page";
 import UsersPage from "@/pages/admin/users-page";
 import ItinerariesPage from "@/pages/itineraries-page";
 import QuotesPage from "@/pages/quotes-page";
+import AgencyRegistrationPage from "@/pages/agency-registration-page";
 
 function Router() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
+      <Route path="/register/agency" component={AgencyRegistrationPage} />
       <ProtectedRoute path="/" component={HomePage} />
       <ProtectedRoute path="/admin/tenants" component={TenantsPage} />
       <ProtectedRoute path="/admin/users" component={UsersPage} />

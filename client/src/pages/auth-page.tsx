@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -166,6 +166,70 @@ export default function AuthPage() {
               </Card>
             </TabsContent>
           </Tabs>
+
+          {/* Travel Agency Registration Link */}
+          <Card className="border-primary/20">
+            <CardContent className="pt-6">
+              <div className="text-center space-y-3">
+                <Building2 className="h-8 w-8 text-primary mx-auto" />
+                <h3 className="font-semibold">Are you a Travel Agency?</h3>
+                <p className="text-sm text-muted-foreground">
+                  Register your travel agency to access our B2B platform and start requesting quotes from local suppliers
+                </p>
+                <Link href="/register/agency">
+                  <Button variant="outline" className="w-full" data-testid="link-agency-registration">
+                    Register as Travel Agency
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Right Column - Hero Section */}
+      <div className="hidden lg:flex items-center justify-center p-8 bg-primary text-primary-foreground">
+        <div className="max-w-md space-y-8">
+          <div className="space-y-4">
+            <h2 className="text-3xl font-semibold">
+              Connect Suppliers with Travel Agencies Worldwide
+            </h2>
+            <p className="text-lg text-primary-foreground/90">
+              Royal VIP Tours is the premier B2B platform for ground operations, enabling seamless quotation workflows between local suppliers and travel agencies.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <Globe2 className="h-6 w-6 mt-1 flex-shrink-0" />
+              <div>
+                <h3 className="font-medium mb-1">Multi-Tenant Architecture</h3>
+                <p className="text-sm text-primary-foreground/80">
+                  Manage suppliers across multiple countries with tenant isolation and role-based access control
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <Building2 className="h-6 w-6 mt-1 flex-shrink-0" />
+              <div>
+                <h3 className="font-medium mb-1">Supplier Catalogues</h3>
+                <p className="text-sm text-primary-foreground/80">
+                  Transport companies, hotels, tour guides, and attractions maintain their own services and pricing
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <Plane className="h-6 w-6 mt-1 flex-shrink-0" />
+              <div>
+                <h3 className="font-medium mb-1">Automated Quotations</h3>
+                <p className="text-sm text-primary-foreground/80">
+                  Build itineraries, request quotes from suppliers, and compile comprehensive proposals for clients
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

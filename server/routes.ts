@@ -264,6 +264,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== Agency Registration Route =====
+
+  app.post("/api/agencies/register", async (req, res, next) => {
+    try {
+      const schema = z.object({
+        legalName: z.string().min(1),
+        tradeName: z.string().optional(),
+        type: z.enum(["tour_operator", "travel_agency", "dmc", "other"]).optional(),
+        licenseNo: z.string().optional(),
+        yearEstablished: z.string().optional(),
+        country: z.string().min(1),
+        website: z.string().optional(),
+        description: z.string().optional(),
+        contactName: z.string().min(1),
+        contactTitle: z.string().optional(),
+        contactEmail: z.string().email(),
+        contactMobile: z.string().optional(),
+        contactPassword: z.string().min(6),
+        street: z.string().min(1),
+        city: z.string().min(1),
+        region: z.string().optional(),
+        postalCode: z.string().optional(),
+        addressCountry: z.string().min(1),
+      });
+
+      const data = schema.parse(req.body);
+
+      // Check if contact email already exists
+      const existingContact = await db
+        .select()
+        .from(agencyContacts)
+        .where(eq(agencyContacts.email, data.contactEmail));
+
+      if (existingContact.length > 0) {
+        return res.status(400).json({ message: "Email already registered" });
+      }
+
+      // Create agency
+      const [agency] = await db.insert(agencies).values({
+        legalName: data.legalName,
+        tradeName: data.tradeName || null,
+        type: data.type || "travel_agency",
+        licenseNo: data.licenseNo || null,
+        yearEstablished: data.yearEstablished ? parseInt(data.yearEstablished) : null,
+        country: data.country,
+        website: data.website || null,
+        description: data.description || null,
+      }).returning();
+
+      // Create primary contact with hashed password
+      const [contact] = await db.insert(agencyContacts).values({
+        agencyId: agency.id,
+        name: data.contactName,
+        title: data.contactTitle || null,
+        email: data.contactEmail,
+        mobile: data.contactMobile || null,
+        password: hashPassword(data.contactPassword),
+        status: "active",
+      }).returning();
+
+      // Create address
+      await db.insert(agencyAddresses).values({
+        agencyId: agency.id,
+        street: data.street,
+        city: data.city,
+        region: data.region || null,
+        postalCode: data.postalCode || null,
+        country: data.addressCountry,
+      });
+
+      res.json({ 
+        message: "Agency registered successfully",
+        agencyId: agency.id,
+        contactEmail: contact.email,
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // ===== Catalog Routes - Cities =====
   
   app.get("/api/catalog/cities", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
