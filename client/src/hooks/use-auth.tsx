@@ -6,7 +6,7 @@ import {
   UseMutationResult,
 } from "@tanstack/react-query";
 import { insertUserSchema, User as SelectUser, InsertUser } from "@shared/schema";
-import { getQueryFn, apiRequest, queryClient, setAuthToken, setActiveTenant, getActiveTenant } from "../lib/queryClient";
+import { getQueryFn, apiRequest, queryClient, setAuthToken, setRefreshToken, setActiveTenant, getActiveTenant } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 type UserTenant = {
@@ -74,10 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return await res.json();
     },
     onSuccess: (data: any) => {
-      if (data.token) {
-        setAuthToken(data.token);
+      if (data.accessToken) {
+        setAuthToken(data.accessToken);
       }
-      const { token, ...user } = data;
+      if (data.refreshToken) {
+        setRefreshToken(data.refreshToken);
+      }
+      const { accessToken, refreshToken: _, ...user } = data;
       queryClient.setQueryData(["/api/user"], user);
       toast({
         title: "Welcome back!",
@@ -99,10 +102,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return await res.json();
     },
     onSuccess: (data: any) => {
-      if (data.token) {
-        setAuthToken(data.token);
+      if (data.accessToken) {
+        setAuthToken(data.accessToken);
       }
-      const { token, ...user } = data;
+      if (data.refreshToken) {
+        setRefreshToken(data.refreshToken);
+      }
+      const { accessToken, refreshToken: _, ...user } = data;
       queryClient.setQueryData(["/api/user"], user);
       toast({
         title: "Account created!",
@@ -124,7 +130,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: () => {
       setAuthToken(null);
+      setRefreshToken(null);
       setActiveTenant(null);
+      setActiveTenantIdState(null);
       queryClient.setQueryData(["/api/user"], null);
       queryClient.setQueryData(["/api/user/tenants"], []);
       toast({

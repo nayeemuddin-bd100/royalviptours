@@ -1,8 +1,11 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-// JWT token storage
+// Token storage
 let authToken: string | null = null;
+let refreshToken: string | null = null;
 let activeTenantId: string | null = null;
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
 
 export function setAuthToken(token: string | null) {
   authToken = token;
@@ -18,6 +21,52 @@ export function getAuthToken(): string | null {
     authToken = localStorage.getItem("auth_token");
   }
   return authToken;
+}
+
+export function setRefreshToken(token: string | null) {
+  refreshToken = token;
+  if (token) {
+    localStorage.setItem("refresh_token", token);
+  } else {
+    localStorage.removeItem("refresh_token");
+  }
+}
+
+export function getRefreshToken(): string | null {
+  if (!refreshToken && typeof window !== "undefined") {
+    refreshToken = localStorage.getItem("refresh_token");
+  }
+  return refreshToken;
+}
+
+async function attemptTokenRefresh(): Promise<boolean> {
+  const currentRefreshToken = getRefreshToken();
+  if (!currentRefreshToken) {
+    return false;
+  }
+
+  try {
+    const res = await fetch("/api/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: currentRefreshToken }),
+    });
+
+    if (!res.ok) {
+      setAuthToken(null);
+      setRefreshToken(null);
+      return false;
+    }
+
+    const data = await res.json();
+    setAuthToken(data.accessToken);
+    setRefreshToken(data.refreshToken);
+    return true;
+  } catch {
+    setAuthToken(null);
+    setRefreshToken(null);
+    return false;
+  }
 }
 
 export function setActiveTenant(tenantId: string | null) {
@@ -36,9 +85,10 @@ export function getActiveTenant(): string | null {
   return activeTenantId;
 }
 
-// Initialize token and tenant from localStorage on client side
+// Initialize tokens and tenant from localStorage on client side
 if (typeof window !== "undefined") {
   authToken = localStorage.getItem("auth_token");
+  refreshToken = localStorage.getItem("refresh_token");
   activeTenantId = localStorage.getItem("active_tenant_id");
 }
 
@@ -54,7 +104,7 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const token = getAuthToken();
+  let token = getAuthToken();
   const tenantId = getActiveTenant();
   const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
   
@@ -66,12 +116,40 @@ export async function apiRequest(
     headers["X-Tenant-Id"] = tenantId;
   }
 
-  const res = await fetch(url, {
+  let res = await fetch(url, {
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
+
+  // If 401 and we have a refresh token, try to refresh
+  if (res.status === 401 && getRefreshToken()) {
+    // Use shared promise to prevent multiple concurrent refresh attempts
+    if (!isRefreshing) {
+      isRefreshing = true;
+      refreshPromise = attemptTokenRefresh();
+    }
+    
+    const refreshed = await refreshPromise;
+    isRefreshing = false;
+    refreshPromise = null;
+    
+    if (refreshed) {
+      // Retry the original request with new token
+      token = getAuthToken();
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      
+      res = await fetch(url, {
+        method,
+        headers,
+        body: data ? JSON.stringify(data) : undefined,
+        credentials: "include",
+      });
+    }
+  }
 
   await throwIfResNotOk(res);
   return res;
@@ -83,7 +161,7 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const token = getAuthToken();
+    let token = getAuthToken();
     const tenantId = getActiveTenant();
     const headers: Record<string, string> = {};
     
@@ -95,10 +173,36 @@ export const getQueryFn: <T>(options: {
       headers["X-Tenant-Id"] = tenantId;
     }
 
-    const res = await fetch(queryKey.join("/") as string, {
+    let res = await fetch(queryKey.join("/") as string, {
       headers,
       credentials: "include",
     });
+
+    // If 401 and we have a refresh token, try to refresh
+    if (res.status === 401 && getRefreshToken()) {
+      // Use shared promise to prevent multiple concurrent refresh attempts
+      if (!isRefreshing) {
+        isRefreshing = true;
+        refreshPromise = attemptTokenRefresh();
+      }
+      
+      const refreshed = await refreshPromise;
+      isRefreshing = false;
+      refreshPromise = null;
+      
+      if (refreshed) {
+        // Retry the original request with new token
+        token = getAuthToken();
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+        
+        res = await fetch(queryKey.join("/") as string, {
+          headers,
+          credentials: "include",
+        });
+      }
+    }
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;

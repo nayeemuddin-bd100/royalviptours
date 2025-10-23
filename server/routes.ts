@@ -14,7 +14,7 @@ import {
   insertRfqSchema, insertAgencySchema
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { hashPassword, comparePassword, generateToken, verifyToken, requireAuth, requireRole, requireTenantRole, type AuthRequest } from "./lib/auth";
+import { hashPassword, comparePassword, generateAccessToken, generateRefreshToken, verifyRefreshToken, revokeRefreshToken, revokeAllUserTokens, verifyToken, requireAuth, requireRole, requireTenantRole, type AuthRequest } from "./lib/auth";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -51,10 +51,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "active",
       }).returning();
 
-      const token = generateToken(user.id);
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = await generateRefreshToken(user.id);
       const { password, ...userWithoutPassword } = user;
       
-      res.json({ ...userWithoutPassword, token });
+      res.json({ ...userWithoutPassword, accessToken, refreshToken });
     } catch (error: any) {
       next(error);
     }
@@ -80,17 +81,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update last login
       await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
 
-      const token = generateToken(user.id);
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = await generateRefreshToken(user.id);
       const { password: _, ...userWithoutPassword } = user;
       
-      res.json({ ...userWithoutPassword, token });
+      res.json({ ...userWithoutPassword, accessToken, refreshToken });
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.post("/api/logout", requireAuth, async (req, res) => {
-    res.json({ message: "Logged out successfully" });
+  app.post("/api/logout", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      // Revoke all refresh tokens for this user
+      await revokeAllUserTokens(req.user!.id);
+      res.json({ message: "Logged out successfully" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/auth/refresh", async (req, res, next) => {
+    try {
+      const { refreshToken } = z.object({
+        refreshToken: z.string(),
+      }).parse(req.body);
+
+      const userId = await verifyRefreshToken(refreshToken);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Invalid or expired refresh token" });
+      }
+
+      // Get user to verify they still exist and are active
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      
+      if (!user || user.status !== "active") {
+        return res.status(401).json({ message: "User not found or inactive" });
+      }
+
+      // Revoke the old refresh token (token rotation)
+      await revokeRefreshToken(refreshToken);
+      
+      // Generate new tokens
+      const accessToken = generateAccessToken(user.id);
+      const newRefreshToken = await generateRefreshToken(user.id);
+      
+      res.json({ accessToken, refreshToken: newRefreshToken });
+    } catch (error: any) {
+      next(error);
+    }
   });
 
   app.get("/api/user", requireAuth, async (req: AuthRequest, res) => {
