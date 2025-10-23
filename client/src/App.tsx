@@ -11,6 +11,7 @@ import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import HomePage from "@/pages/home-page";
 import TenantsPage from "@/pages/admin/tenants-page";
+import UsersPage from "@/pages/admin/users-page";
 import ItinerariesPage from "@/pages/itineraries-page";
 import QuotesPage from "@/pages/quotes-page";
 
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/auth" component={AuthPage} />
       <ProtectedRoute path="/" component={HomePage} />
       <ProtectedRoute path="/admin/tenants" component={TenantsPage} />
+      <ProtectedRoute path="/admin/users" component={UsersPage} />
       <ProtectedRoute path="/itineraries" component={ItinerariesPage} />
       <ProtectedRoute path="/quotes" component={QuotesPage} />
       <Route component={NotFound} />

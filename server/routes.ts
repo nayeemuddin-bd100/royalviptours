@@ -201,6 +201,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== Admin Routes - User Management =====
+  
+  app.get("/api/admin/users", requireAuth, requireRole("admin"), async (req, res, next) => {
+    try {
+      const allUsers = await db.select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        status: users.status,
+        createdAt: users.createdAt,
+        lastLoginAt: users.lastLoginAt,
+      }).from(users).orderBy(desc(users.createdAt));
+      res.json(allUsers);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/admin/user-tenants", requireAuth, requireRole("admin"), async (req, res, next) => {
+    try {
+      const allUserTenants = await db
+        .select({
+          id: userTenants.id,
+          userId: userTenants.userId,
+          tenantId: userTenants.tenantId,
+          role: userTenants.tenantRole,
+          tenant: {
+            id: tenants.id,
+            name: tenants.name,
+            code: tenants.countryCode,
+          }
+        })
+        .from(userTenants)
+        .leftJoin(tenants, eq(userTenants.tenantId, tenants.id));
+      res.json(allUserTenants);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // ===== Catalog Routes - Cities =====
   
   app.get("/api/catalog/cities", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
