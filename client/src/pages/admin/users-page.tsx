@@ -1,9 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Users, Mail, Shield, Building2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Users, Mail, Shield, Building2, UserPlus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type User = {
   id: string;
@@ -26,6 +34,13 @@ type UserTenant = {
 };
 
 export default function UsersPage() {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("user");
+
   const { data: users, isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
   });
@@ -35,6 +50,37 @@ export default function UsersPage() {
   });
 
   const isLoading = usersLoading || tenantsLoading;
+
+  const createUserMutation = useMutation({
+    mutationFn: async (data: { email: string; password: string; name: string; role: string }) => {
+      const res = await apiRequest("POST", "/api/admin/users", data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setDialogOpen(false);
+      setEmail("");
+      setPassword("");
+      setName("");
+      setRole("user");
+      toast({
+        title: "User created",
+        description: "The user account has been created successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to create user",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    createUserMutation.mutate({ email, password, name, role });
+  };
 
   const getUserTenants = (userId: string) => {
     return userTenants?.filter(ut => ut.userId === userId) || [];
@@ -61,11 +107,90 @@ export default function UsersPage() {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Page Header */}
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold text-foreground">User Management</h1>
-        <p className="text-sm text-muted-foreground">
-          View and manage user accounts across all tenants
-        </p>
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold text-foreground">User Management</h1>
+          <p className="text-sm text-muted-foreground">
+            View and manage user accounts across all tenants
+          </p>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-create-user">
+              <UserPlus className="h-4 w-4 mr-2" />
+              Create User
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New User</DialogTitle>
+              <DialogDescription>
+                Create a new user account. After creation, you can assign them to tenants with specific roles (Country Manager, Supplier, etc.) in the Tenants management page.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  data-testid="input-create-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="user@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  data-testid="input-create-email"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  data-testid="input-create-password"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="role">User Role</Label>
+                <Select value={role} onValueChange={setRole}>
+                  <SelectTrigger data-testid="select-create-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin - Full system access</SelectItem>
+                    <SelectItem value="user">User - Standard account</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Tenant-specific roles (Country Manager, Supplier) are assigned after creation in the Tenants section.
+                </p>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createUserMutation.isPending} data-testid="button-submit-create-user">
+                  {createUserMutation.isPending ? "Creating..." : "Create User"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Stats Cards */}

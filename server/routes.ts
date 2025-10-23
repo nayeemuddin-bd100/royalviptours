@@ -242,6 +242,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/admin/users", requireAuth, requireRole("admin"), async (req, res, next) => {
+    try {
+      const body = insertUserSchema.parse(req.body);
+      const existingUser = await db.select().from(users).where(eq(users.email, body.email));
+      
+      if (existingUser.length > 0) {
+        return res.status(400).json({ message: "Email already registered" });
+      }
+
+      const [user] = await db.insert(users).values({
+        ...body,
+        password: hashPassword(body.password),
+        status: "active",
+      }).returning();
+
+      const { password, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // ===== Catalog Routes - Cities =====
   
   app.get("/api/catalog/cities", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
