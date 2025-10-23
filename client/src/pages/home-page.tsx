@@ -1,6 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, Calendar, FileText, TrendingUp, Users, MapPin } from "lucide-react";
+import { Link } from "wouter";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -108,36 +109,42 @@ export default function HomePage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <button
-                className="flex items-center gap-3 p-4 rounded-md border border-border hover-elevate active-elevate-2 text-left"
-                data-testid="quick-action-tenants"
-              >
-                <MapPin className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium text-sm">Manage Tenants</p>
-                  <p className="text-xs text-muted-foreground">Add countries & regions</p>
-                </div>
-              </button>
-              <button
-                className="flex items-center gap-3 p-4 rounded-md border border-border hover-elevate active-elevate-2 text-left"
-                data-testid="quick-action-users"
-              >
-                <Users className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium text-sm">Manage Users</p>
-                  <p className="text-xs text-muted-foreground">Assign roles & permissions</p>
-                </div>
-              </button>
-              <button
-                className="flex items-center gap-3 p-4 rounded-md border border-border hover-elevate active-elevate-2 text-left"
-                data-testid="quick-action-audit"
-              >
-                <FileText className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium text-sm">Audit Logs</p>
-                  <p className="text-xs text-muted-foreground">View system activity</p>
-                </div>
-              </button>
+              <Link href="/admin/tenants">
+                <button
+                  className="flex items-center gap-3 p-4 rounded-md border border-border hover-elevate active-elevate-2 text-left w-full"
+                  data-testid="quick-action-tenants"
+                >
+                  <MapPin className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="font-medium text-sm">Manage Tenants</p>
+                    <p className="text-xs text-muted-foreground">Add countries & regions</p>
+                  </div>
+                </button>
+              </Link>
+              <Link href="/admin/users">
+                <button
+                  className="flex items-center gap-3 p-4 rounded-md border border-border hover-elevate active-elevate-2 text-left w-full"
+                  data-testid="quick-action-users"
+                >
+                  <Users className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="font-medium text-sm">Manage Users</p>
+                    <p className="text-xs text-muted-foreground">Assign roles & permissions</p>
+                  </div>
+                </button>
+              </Link>
+              <Link href="/admin/audit">
+                <button
+                  className="flex items-center gap-3 p-4 rounded-md border border-border hover-elevate active-elevate-2 text-left w-full"
+                  data-testid="quick-action-audit"
+                >
+                  <FileText className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="font-medium text-sm">Audit Logs</p>
+                    <p className="text-xs text-muted-foreground">View system activity</p>
+                  </div>
+                </button>
+              </Link>
             </div>
           </CardContent>
         </Card>
