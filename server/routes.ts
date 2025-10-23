@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./db";
 import { 
-  users, tenants, cities, airports, eventCategories, amenities,
+  users, tenants, userTenants, cities, airports, eventCategories, amenities,
   transportCompanies, transportProducts, hotels, roomTypes, mealPlans, hotelRates,
   tourGuides, sights, itineraries, itineraryDays, itineraryEvents, 
   rfqs, rfqSegments, quotes, agencies, agencyContacts, agencyAddresses,
@@ -14,7 +14,7 @@ import {
   insertRfqSchema, insertAgencySchema
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { hashPassword, comparePassword, generateToken, verifyToken, requireAuth, requireRole, type AuthRequest } from "./lib/auth";
+import { hashPassword, comparePassword, generateToken, verifyToken, requireAuth, requireRole, requireTenantRole, type AuthRequest } from "./lib/auth";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -98,6 +98,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(userWithoutPassword);
   });
 
+  app.get("/api/user/tenants", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const userTenantsData = await db
+        .select({
+          id: userTenants.id,
+          tenantId: userTenants.tenantId,
+          tenantRole: userTenants.tenantRole,
+          tenantName: tenants.name,
+          tenantCountryCode: tenants.countryCode,
+          tenantStatus: tenants.status
+        })
+        .from(userTenants)
+        .leftJoin(tenants, eq(userTenants.tenantId, tenants.id))
+        .where(eq(userTenants.userId, req.user!.id));
+      
+      res.json(userTenantsData);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // ===== Tenant Routes =====
   
   app.get("/api/tenants", requireAuth, async (req, res, next) => {
@@ -142,15 +163,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Catalog Routes - Cities =====
   
-  app.get("/api/catalog/cities", requireAuth, async (req: AuthRequest, res, next) => {
+  app.get("/api/catalog/cities", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
     try {
-      // Get tenant_id from user context or query param
-      const tenantId = req.query.tenantId as string;
-      if (!tenantId) {
-        return res.status(400).json({ message: "Tenant ID required" });
-      }
       const allCities = await db.select().from(cities)
-        .where(eq(cities.tenantId, tenantId))
+        .where(eq(cities.tenantId, req.tenantContext!.tenantId))
         .orderBy(cities.nameEn);
       res.json(allCities);
     } catch (error: any) {
@@ -158,31 +174,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/catalog/cities", requireAuth, async (req, res, next) => {
+  app.post("/api/catalog/cities", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
     try {
       const body = insertCitySchema.parse(req.body);
-      const [city] = await db.insert(cities).values(body).returning();
+      const [city] = await db.insert(cities).values({
+        ...body,
+        tenantId: req.tenantContext!.tenantId
+      }).returning();
       res.json(city);
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.patch("/api/catalog/cities/:id", requireAuth, async (req, res, next) => {
+  app.patch("/api/catalog/cities/:id", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
       const body = insertCitySchema.partial().parse(req.body);
-      const [city] = await db.update(cities).set(body).where(eq(cities.id, id)).returning();
+      const [city] = await db.update(cities).set(body).where(
+        and(eq(cities.id, id), eq(cities.tenantId, req.tenantContext!.tenantId))
+      ).returning();
+      if (!city) {
+        return res.status(404).json({ message: "City not found" });
+      }
       res.json(city);
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.delete("/api/catalog/cities/:id", requireAuth, async (req, res, next) => {
+  app.delete("/api/catalog/cities/:id", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      await db.delete(cities).where(eq(cities.id, id));
+      await db.delete(cities).where(
+        and(eq(cities.id, id), eq(cities.tenantId, req.tenantContext!.tenantId))
+      );
       res.json({ message: "City deleted" });
     } catch (error: any) {
       next(error);
@@ -191,14 +217,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Catalog Routes - Airports =====
   
-  app.get("/api/catalog/airports", requireAuth, async (req: AuthRequest, res, next) => {
+  app.get("/api/catalog/airports", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
     try {
-      const tenantId = req.query.tenantId as string;
-      if (!tenantId) {
-        return res.status(400).json({ message: "Tenant ID required" });
-      }
       const allAirports = await db.select().from(airports)
-        .where(eq(airports.tenantId, tenantId))
+        .where(eq(airports.tenantId, req.tenantContext!.tenantId))
         .orderBy(airports.code);
       res.json(allAirports);
     } catch (error: any) {
@@ -206,10 +228,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/catalog/airports", requireAuth, async (req, res, next) => {
+  app.post("/api/catalog/airports", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
     try {
       const body = insertAirportSchema.parse(req.body);
-      const [airport] = await db.insert(airports).values(body).returning();
+      const [airport] = await db.insert(airports).values({
+        ...body,
+        tenantId: req.tenantContext!.tenantId
+      }).returning();
       res.json(airport);
     } catch (error: any) {
       next(error);
@@ -260,33 +285,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Transport Routes =====
   
-  app.get("/api/transport/companies", requireAuth, async (req, res, next) => {
+  app.get("/api/transport/companies", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
     try {
-      const companies = await db.select().from(transportCompanies).orderBy(transportCompanies.name);
+      const companies = await db.select().from(transportCompanies)
+        .where(eq(transportCompanies.tenantId, req.tenantContext!.tenantId))
+        .orderBy(transportCompanies.name);
       res.json(companies);
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.post("/api/transport/companies", requireAuth, async (req, res, next) => {
+  app.post("/api/transport/companies", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
     try {
       const body = insertTransportCompanySchema.parse(req.body);
-      const [company] = await db.insert(transportCompanies).values(body).returning();
+      const [company] = await db.insert(transportCompanies).values({
+        ...body,
+        tenantId: req.tenantContext!.tenantId
+      }).returning();
       res.json(company);
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.get("/api/transport/products", requireAuth, async (req: AuthRequest, res, next) => {
+  app.get("/api/transport/products", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
     try {
-      const tenantId = req.query.tenantId as string;
-      if (!tenantId) {
-        return res.status(400).json({ message: "Tenant ID required" });
-      }
       const products = await db.select().from(transportProducts)
-        .where(eq(transportProducts.tenantId, tenantId))
+        .where(eq(transportProducts.tenantId, req.tenantContext!.tenantId))
         .orderBy(transportProducts.name);
       res.json(products);
     } catch (error: any) {
@@ -294,31 +320,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/transport/products", requireAuth, async (req, res, next) => {
+  app.post("/api/transport/products", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
     try {
       const body = insertTransportProductSchema.parse(req.body);
-      const [product] = await db.insert(transportProducts).values(body).returning();
+      const [product] = await db.insert(transportProducts).values({
+        ...body,
+        tenantId: req.tenantContext!.tenantId
+      }).returning();
       res.json(product);
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.patch("/api/transport/products/:id", requireAuth, async (req, res, next) => {
+  app.patch("/api/transport/products/:id", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
       const body = insertTransportProductSchema.partial().parse(req.body);
-      const [product] = await db.update(transportProducts).set(body).where(eq(transportProducts.id, id)).returning();
+      const [product] = await db.update(transportProducts).set(body).where(
+        and(eq(transportProducts.id, id), eq(transportProducts.tenantId, req.tenantContext!.tenantId))
+      ).returning();
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
       res.json(product);
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.delete("/api/transport/products/:id", requireAuth, async (req, res, next) => {
+  app.delete("/api/transport/products/:id", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      await db.delete(transportProducts).where(eq(transportProducts.id, id));
+      await db.delete(transportProducts).where(
+        and(eq(transportProducts.id, id), eq(transportProducts.tenantId, req.tenantContext!.tenantId))
+      );
       res.json({ message: "Product deleted" });
     } catch (error: any) {
       next(error);
@@ -327,28 +363,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Hotel Routes =====
   
-  app.get("/api/hotels", requireAuth, async (req, res, next) => {
+  app.get("/api/hotels", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
     try {
-      const allHotels = await db.select().from(hotels).orderBy(hotels.name);
+      const allHotels = await db.select().from(hotels)
+        .where(eq(hotels.tenantId, req.tenantContext!.tenantId))
+        .orderBy(hotels.name);
       res.json(allHotels);
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.post("/api/hotels", requireAuth, async (req, res, next) => {
+  app.post("/api/hotels", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
     try {
       const body = insertHotelSchema.parse(req.body);
-      const [hotel] = await db.insert(hotels).values(body).returning();
+      const [hotel] = await db.insert(hotels).values({
+        ...body,
+        tenantId: req.tenantContext!.tenantId
+      }).returning();
       res.json(hotel);
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.get("/api/hotels/:id/room-types", requireAuth, async (req, res, next) => {
+  app.get("/api/hotels/:id/room-types", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
+      // Verify hotel belongs to user's tenant
+      const [hotel] = await db.select().from(hotels).where(
+        and(eq(hotels.id, id), eq(hotels.tenantId, req.tenantContext!.tenantId))
+      );
+      if (!hotel) {
+        return res.status(404).json({ message: "Hotel not found" });
+      }
       const rooms = await db.select().from(roomTypes).where(eq(roomTypes.hotelId, id));
       res.json(rooms);
     } catch (error: any) {
@@ -356,9 +404,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/hotels/:id/room-types", requireAuth, async (req, res, next) => {
+  app.post("/api/hotels/:id/room-types", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
+      // Verify hotel belongs to user's tenant
+      const [hotel] = await db.select().from(hotels).where(
+        and(eq(hotels.id, id), eq(hotels.tenantId, req.tenantContext!.tenantId))
+      );
+      if (!hotel) {
+        return res.status(404).json({ message: "Hotel not found" });
+      }
       const body = insertRoomTypeSchema.parse({ ...req.body, hotelId: id });
       const [room] = await db.insert(roomTypes).values(body).returning();
       res.json(room);
@@ -367,9 +422,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/hotels/:id/rates", requireAuth, async (req, res, next) => {
+  app.get("/api/hotels/:id/rates", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
+      // Verify hotel belongs to user's tenant
+      const [hotel] = await db.select().from(hotels).where(
+        and(eq(hotels.id, id), eq(hotels.tenantId, req.tenantContext!.tenantId))
+      );
+      if (!hotel) {
+        return res.status(404).json({ message: "Hotel not found" });
+      }
       const rates = await db.select().from(hotelRates).where(eq(hotelRates.hotelId, id));
       res.json(rates);
     } catch (error: any) {
@@ -377,9 +439,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/hotels/:id/rates", requireAuth, async (req, res, next) => {
+  app.post("/api/hotels/:id/rates", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
+      // Verify hotel belongs to user's tenant
+      const [hotel] = await db.select().from(hotels).where(
+        and(eq(hotels.id, id), eq(hotels.tenantId, req.tenantContext!.tenantId))
+      );
+      if (!hotel) {
+        return res.status(404).json({ message: "Hotel not found" });
+      }
       const body = insertHotelRateSchema.parse({ ...req.body, hotelId: id });
       const [rate] = await db.insert(hotelRates).values(body).returning();
       res.json(rate);
@@ -390,19 +459,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Tour Guide Routes =====
   
-  app.get("/api/guides", requireAuth, async (req, res, next) => {
+  app.get("/api/guides", requireAuth, requireTenantRole("guide"), async (req: AuthRequest, res, next) => {
     try {
-      const guides = await db.select().from(tourGuides).orderBy(tourGuides.name);
+      const guides = await db.select().from(tourGuides)
+        .where(eq(tourGuides.tenantId, req.tenantContext!.tenantId))
+        .orderBy(tourGuides.name);
       res.json(guides);
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.post("/api/guides", requireAuth, async (req, res, next) => {
+  app.post("/api/guides", requireAuth, requireTenantRole("guide"), async (req: AuthRequest, res, next) => {
     try {
       const body = insertTourGuideSchema.parse(req.body);
-      const [guide] = await db.insert(tourGuides).values(body).returning();
+      const [guide] = await db.insert(tourGuides).values({
+        ...body,
+        tenantId: req.tenantContext!.tenantId
+      }).returning();
       res.json(guide);
     } catch (error: any) {
       next(error);
@@ -411,19 +485,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Sights Routes =====
   
-  app.get("/api/sights", requireAuth, async (req, res, next) => {
+  app.get("/api/sights", requireAuth, requireTenantRole("sight"), async (req: AuthRequest, res, next) => {
     try {
-      const allSights = await db.select().from(sights).orderBy(sights.name);
+      const allSights = await db.select().from(sights)
+        .where(eq(sights.tenantId, req.tenantContext!.tenantId))
+        .orderBy(sights.name);
       res.json(allSights);
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.post("/api/sights", requireAuth, async (req, res, next) => {
+  app.post("/api/sights", requireAuth, requireTenantRole("sight"), async (req: AuthRequest, res, next) => {
     try {
       const body = insertSightSchema.parse(req.body);
-      const [sight] = await db.insert(sights).values(body).returning();
+      const [sight] = await db.insert(sights).values({
+        ...body,
+        tenantId: req.tenantContext!.tenantId
+      }).returning();
       res.json(sight);
     } catch (error: any) {
       next(error);
@@ -475,12 +554,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get("/api/itineraries", requireAuth, async (req: AuthRequest, res, next) => {
     try {
-      const tenantId = req.query.tenantId as string;
-      if (!tenantId) {
-        return res.status(400).json({ message: "Tenant ID required" });
-      }
+      // Itineraries can be accessed by agency users or country managers
+      // For now, just require authentication - will add proper agency scoping later
       const allItineraries = await db.select().from(itineraries)
-        .where(eq(itineraries.tenantId, tenantId))
         .orderBy(desc(itineraries.createdAt));
       res.json(allItineraries);
     } catch (error: any) {

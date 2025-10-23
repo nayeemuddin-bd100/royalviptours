@@ -2,6 +2,7 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 // JWT token storage
 let authToken: string | null = null;
+let activeTenantId: string | null = null;
 
 export function setAuthToken(token: string | null) {
   authToken = token;
@@ -19,9 +20,26 @@ export function getAuthToken(): string | null {
   return authToken;
 }
 
-// Initialize token from localStorage on client side
+export function setActiveTenant(tenantId: string | null) {
+  activeTenantId = tenantId;
+  if (tenantId) {
+    localStorage.setItem("active_tenant_id", tenantId);
+  } else {
+    localStorage.removeItem("active_tenant_id");
+  }
+}
+
+export function getActiveTenant(): string | null {
+  if (!activeTenantId && typeof window !== "undefined") {
+    activeTenantId = localStorage.getItem("active_tenant_id");
+  }
+  return activeTenantId;
+}
+
+// Initialize token and tenant from localStorage on client side
 if (typeof window !== "undefined") {
   authToken = localStorage.getItem("auth_token");
+  activeTenantId = localStorage.getItem("active_tenant_id");
 }
 
 async function throwIfResNotOk(res: Response) {
@@ -37,10 +55,15 @@ export async function apiRequest(
   data?: unknown | undefined,
 ): Promise<Response> {
   const token = getAuthToken();
+  const tenantId = getActiveTenant();
   const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
   
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+  
+  if (tenantId) {
+    headers["X-Tenant-Id"] = tenantId;
   }
 
   const res = await fetch(url, {
@@ -61,10 +84,15 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const token = getAuthToken();
+    const tenantId = getActiveTenant();
     const headers: Record<string, string> = {};
     
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
+    }
+    
+    if (tenantId) {
+      headers["X-Tenant-Id"] = tenantId;
     }
 
     const res = await fetch(queryKey.join("/") as string, {
