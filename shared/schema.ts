@@ -197,6 +197,7 @@ export const amenities = pgTable("amenities", {
 export const transportCompanies = pgTable("transport_companies", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   description: text("description"),
   phone: text("phone"),
@@ -250,6 +251,7 @@ export const drivers = pgTable("drivers", {
 export const hotels = pgTable("hotels", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   address: text("address").notNull(),
   cityId: varchar("city_id").references(() => cities.id),
@@ -317,6 +319,7 @@ export const hotelRates = pgTable("hotel_rates", {
 export const tourGuides = pgTable("tour_guides", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   photoUrl: text("photo_url"),
   languages: text("languages").array(),
@@ -336,6 +339,7 @@ export const tourGuides = pgTable("tour_guides", {
 export const sights = pgTable("sights", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   locationText: text("location_text"),
   cityId: varchar("city_id").references(() => cities.id),

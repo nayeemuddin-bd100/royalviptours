@@ -1851,42 +1851,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const userId = req.user!.id;
 
-      // Get user's tenant memberships to verify access
-      const userTenantsData = await db
-        .select()
-        .from(userTenants)
-        .where(eq(userTenants.userId, userId));
-
-      const supplierIds: string[] = [];
-
-      for (const ut of userTenantsData) {
-        if (ut.tenantRole === "transport") {
-          const companies = await db
-            .select()
-            .from(transportCompanies)
-            .where(eq(transportCompanies.tenantId, ut.tenantId));
-          supplierIds.push(...companies.map(c => c.id));
-        } else if (ut.tenantRole === "hotel") {
-          const hotelsData = await db
-            .select()
-            .from(hotels)
-            .where(eq(hotels.tenantId, ut.tenantId));
-          supplierIds.push(...hotelsData.map(h => h.id));
-        } else if (ut.tenantRole === "guide") {
-          const guidesData = await db
-            .select()
-            .from(tourGuides)
-            .where(eq(tourGuides.tenantId, ut.tenantId));
-          supplierIds.push(...guidesData.map(g => g.id));
-        } else if (ut.tenantRole === "sight") {
-          const sightsData = await db
-            .select()
-            .from(sights)
-            .where(eq(sights.tenantId, ut.tenantId));
-          supplierIds.push(...sightsData.map(s => s.id));
-        }
-      }
-
       const [segment] = await db
         .select()
         .from(rfqSegments)
@@ -1896,16 +1860,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "RFQ segment not found" });
       }
 
-      // Verify this segment belongs to one of the user's suppliers
-      if (!supplierIds.includes(segment.supplierId)) {
-        return res.status(403).json({ message: "Access denied" });
-      }
-
-      // Get associated RFQ and itinerary details
+      // Get associated RFQ to check tenant
       const [rfq] = await db
         .select()
         .from(rfqs)
         .where(eq(rfqs.id, segment.rfqId));
+
+      if (!rfq) {
+        return res.status(404).json({ message: "RFQ not found" });
+      }
+
+      // Critical security check: Verify user has access to the supplier company
+      // For suppliers with ownerId: user must own it
+      // For legacy suppliers (ownerId null): user must have matching role in tenant
+      let hasAccess = false;
+
+      if (segment.supplierType === "transport") {
+        const [company] = await db
+          .select()
+          .from(transportCompanies)
+          .where(and(
+            eq(transportCompanies.id, segment.supplierId),
+            eq(transportCompanies.tenantId, rfq.tenantId)
+          ));
+        
+        if (company) {
+          if (company.ownerId) {
+            // New suppliers with ownerId: require exact ownership match
+            hasAccess = company.ownerId === userId;
+          } else {
+            // Legacy suppliers without ownerId: allow any user with transport role in tenant
+            const [userTenant] = await db
+              .select()
+              .from(userTenants)
+              .where(and(
+                eq(userTenants.userId, userId),
+                eq(userTenants.tenantId, rfq.tenantId),
+                eq(userTenants.tenantRole, "transport")
+              ));
+            hasAccess = !!userTenant;
+          }
+        }
+      } else if (segment.supplierType === "hotel") {
+        const [hotel] = await db
+          .select()
+          .from(hotels)
+          .where(and(
+            eq(hotels.id, segment.supplierId),
+            eq(hotels.tenantId, rfq.tenantId)
+          ));
+        
+        if (hotel) {
+          if (hotel.ownerId) {
+            hasAccess = hotel.ownerId === userId;
+          } else {
+            const [userTenant] = await db
+              .select()
+              .from(userTenants)
+              .where(and(
+                eq(userTenants.userId, userId),
+                eq(userTenants.tenantId, rfq.tenantId),
+                eq(userTenants.tenantRole, "hotel")
+              ));
+            hasAccess = !!userTenant;
+          }
+        }
+      } else if (segment.supplierType === "guide") {
+        const [guide] = await db
+          .select()
+          .from(tourGuides)
+          .where(and(
+            eq(tourGuides.id, segment.supplierId),
+            eq(tourGuides.tenantId, rfq.tenantId)
+          ));
+        
+        if (guide) {
+          if (guide.ownerId) {
+            hasAccess = guide.ownerId === userId;
+          } else {
+            const [userTenant] = await db
+              .select()
+              .from(userTenants)
+              .where(and(
+                eq(userTenants.userId, userId),
+                eq(userTenants.tenantId, rfq.tenantId),
+                eq(userTenants.tenantRole, "guide")
+              ));
+            hasAccess = !!userTenant;
+          }
+        }
+      } else if (segment.supplierType === "sight") {
+        const [sight] = await db
+          .select()
+          .from(sights)
+          .where(and(
+            eq(sights.id, segment.supplierId),
+            eq(sights.tenantId, rfq.tenantId)
+          ));
+        
+        if (sight) {
+          if (sight.ownerId) {
+            hasAccess = sight.ownerId === userId;
+          } else {
+            const [userTenant] = await db
+              .select()
+              .from(userTenants)
+              .where(and(
+                eq(userTenants.userId, userId),
+                eq(userTenants.tenantId, rfq.tenantId),
+                eq(userTenants.tenantRole, "sight")
+              ));
+            hasAccess = !!userTenant;
+          }
+        }
+      }
+
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied: Segment not found or does not belong to your company" });
+      }
 
       const [itinerary] = await db
         .select()
@@ -1933,42 +2005,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         supplierNotes: z.string().optional(),
       }).parse(req.body);
 
-      // Get user's tenant memberships to verify access
-      const userTenantsData = await db
-        .select()
-        .from(userTenants)
-        .where(eq(userTenants.userId, userId));
-
-      const supplierIds: string[] = [];
-
-      for (const ut of userTenantsData) {
-        if (ut.tenantRole === "transport") {
-          const companies = await db
-            .select()
-            .from(transportCompanies)
-            .where(eq(transportCompanies.tenantId, ut.tenantId));
-          supplierIds.push(...companies.map(c => c.id));
-        } else if (ut.tenantRole === "hotel") {
-          const hotelsData = await db
-            .select()
-            .from(hotels)
-            .where(eq(hotels.tenantId, ut.tenantId));
-          supplierIds.push(...hotelsData.map(h => h.id));
-        } else if (ut.tenantRole === "guide") {
-          const guidesData = await db
-            .select()
-            .from(tourGuides)
-            .where(eq(tourGuides.tenantId, ut.tenantId));
-          supplierIds.push(...guidesData.map(g => g.id));
-        } else if (ut.tenantRole === "sight") {
-          const sightsData = await db
-            .select()
-            .from(sights)
-            .where(eq(sights.tenantId, ut.tenantId));
-          supplierIds.push(...sightsData.map(s => s.id));
-        }
-      }
-
       const [segment] = await db
         .select()
         .from(rfqSegments)
@@ -1978,12 +2014,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "RFQ segment not found" });
       }
 
-      // Verify this segment belongs to one of the user's suppliers
-      if (!supplierIds.includes(segment.supplierId)) {
-        return res.status(403).json({ message: "Access denied" });
+      // Get associated RFQ to check tenant
+      const [rfq] = await db
+        .select()
+        .from(rfqs)
+        .where(eq(rfqs.id, segment.rfqId));
+
+      if (!rfq) {
+        return res.status(404).json({ message: "RFQ not found" });
       }
 
-      // Update the segment with the quote
+      // Critical security check: Verify user has access to the supplier company
+      // For suppliers with ownerId: user must own it
+      // For legacy suppliers (ownerId null): user must have matching role in tenant
+      let hasAccess = false;
+
+      if (segment.supplierType === "transport") {
+        const [company] = await db
+          .select()
+          .from(transportCompanies)
+          .where(and(
+            eq(transportCompanies.id, segment.supplierId),
+            eq(transportCompanies.tenantId, rfq.tenantId)
+          ));
+        
+        if (company) {
+          if (company.ownerId) {
+            // New suppliers with ownerId: require exact ownership match
+            hasAccess = company.ownerId === userId;
+          } else {
+            // Legacy suppliers without ownerId: allow any user with transport role in tenant
+            const [userTenant] = await db
+              .select()
+              .from(userTenants)
+              .where(and(
+                eq(userTenants.userId, userId),
+                eq(userTenants.tenantId, rfq.tenantId),
+                eq(userTenants.tenantRole, "transport")
+              ));
+            hasAccess = !!userTenant;
+          }
+        }
+      } else if (segment.supplierType === "hotel") {
+        const [hotel] = await db
+          .select()
+          .from(hotels)
+          .where(and(
+            eq(hotels.id, segment.supplierId),
+            eq(hotels.tenantId, rfq.tenantId)
+          ));
+        
+        if (hotel) {
+          if (hotel.ownerId) {
+            hasAccess = hotel.ownerId === userId;
+          } else {
+            const [userTenant] = await db
+              .select()
+              .from(userTenants)
+              .where(and(
+                eq(userTenants.userId, userId),
+                eq(userTenants.tenantId, rfq.tenantId),
+                eq(userTenants.tenantRole, "hotel")
+              ));
+            hasAccess = !!userTenant;
+          }
+        }
+      } else if (segment.supplierType === "guide") {
+        const [guide] = await db
+          .select()
+          .from(tourGuides)
+          .where(and(
+            eq(tourGuides.id, segment.supplierId),
+            eq(tourGuides.tenantId, rfq.tenantId)
+          ));
+        
+        if (guide) {
+          if (guide.ownerId) {
+            hasAccess = guide.ownerId === userId;
+          } else {
+            const [userTenant] = await db
+              .select()
+              .from(userTenants)
+              .where(and(
+                eq(userTenants.userId, userId),
+                eq(userTenants.tenantId, rfq.tenantId),
+                eq(userTenants.tenantRole, "guide")
+              ));
+            hasAccess = !!userTenant;
+          }
+        }
+      } else if (segment.supplierType === "sight") {
+        const [sight] = await db
+          .select()
+          .from(sights)
+          .where(and(
+            eq(sights.id, segment.supplierId),
+            eq(sights.tenantId, rfq.tenantId)
+          ));
+        
+        if (sight) {
+          if (sight.ownerId) {
+            hasAccess = sight.ownerId === userId;
+          } else {
+            const [userTenant] = await db
+              .select()
+              .from(userTenants)
+              .where(and(
+                eq(userTenants.userId, userId),
+                eq(userTenants.tenantId, rfq.tenantId),
+                eq(userTenants.tenantRole, "sight")
+              ));
+            hasAccess = !!userTenant;
+          }
+        }
+      }
+
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied: Segment not found or does not belong to your company" });
+      }
+
+      // Update the segment with the quote (store as string to match schema)
       const [updatedSegment] = await db
         .update(rfqSegments)
         .set({
@@ -2019,7 +2169,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const body = insertTransportCompanySchema.parse(req.body);
       const [company] = await db.insert(transportCompanies).values({
         ...body,
-        tenantId: req.tenantContext!.tenantId
+        tenantId: req.tenantContext!.tenantId,
+        ownerId: req.user!.id
       }).returning();
       res.json(company);
     } catch (error: any) {
