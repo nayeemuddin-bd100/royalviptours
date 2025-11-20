@@ -8,30 +8,41 @@ The application serves as a productivity-focused information management system f
 
 ## Recent Progress (November 20, 2025)
 
-**Completed: Agency Authentication System**
+**Completed: Itinerary Builder for Travel Agencies**
+- Full CRUD itinerary management system with 10 backend API endpoints
+- List page showing all agency itineraries with status badges and actions
+- Create page with tenant selection, date range, and passenger count inputs
+- Comprehensive edit/builder page with multi-day timeline interface
+- Event management with add/edit/delete dialogs for each day
+- All endpoints properly secured with requireAgencyContact and agencyId scoping
+- Critical bug fixes:
+  - Fixed passenger count validation (frontend now casts to Number before submission)
+  - Added date change protection (blocks updates when events exist to prevent data loss)
+  - Improved error handling on edit page with loading/error states
+- E2E tests passed: itinerary creation → day generation → event management → DB verification
+- Architect approved with "Pass" verdict after multiple review cycles
+
+**Previous: Agency Authentication & Profile System**
 - Implemented dual authentication supporting both suppliers and travel agencies
-- JWT tokens now include userType field ("user" or "agency")
-- Auth middleware loads from correct table (users or agency_contacts) based on userType
-- Created agency login endpoint (POST /api/agency/login) with separate token generation
-- Built agency dashboard page with stats overview and empty state CTAs
-- Removed FK constraint from refresh_tokens.user_id to support both user types
-- End-to-end test passed: agency login → dashboard display → refresh token creation
+- JWT tokens include userType field ("user" or "agency") for proper routing
+- Agency profile management with Profile, Contacts, and Addresses tabs
+- Complete agency dashboard with stats overview and empty state CTAs
+- End-to-end test passed: agency login → dashboard → profile management
 
 **Previous: Supplier Catalog Management - Transport Module**
-- Implemented full transport supplier dashboard with role-based access
-- Transport suppliers can manage routes (products) and fleet (vehicles)
-- Fixed critical tenant loading bug in AuthProvider (removed initialData)
-- Added req.tenantId to requireTenantRole middleware for proper tenant isolation
-- All transport data is properly tenant-scoped with X-Tenant-Id header validation
+- Transport supplier dashboard with role-based access control
+- Route (product) and fleet (vehicle) management functionality
+- Proper tenant isolation with X-Tenant-Id header validation
 - End-to-end test passed: login → create route → create vehicle → DB verification
 
 **Recommended Future Improvements**:
 - Security: Migrate from localStorage-based tokens to HttpOnly cookies for XSS protection
 - Security: Move refresh token storage entirely server-side (currently exposed in localStorage)
 - Database: Add userType discriminator to refresh_tokens or split into separate tables for referential integrity
-- Validation: Harden numeric field validation (basePrice, duration, size) with zod schemas
-- Forms: Refactor forms to use shadcn Form with react-hook-form + zodResolver
-- Testing: Add tests for invalid payloads and tenant leakage scenarios
+- Itineraries: Add UI feedback when date changes are blocked due to existing events
+- Itineraries: Add regression tests for date changes with/without events
+- Validation: Harden numeric field validation with zod schemas across all forms
+- Forms: Refactor remaining forms to use shadcn Form with react-hook-form + zodResolver
 
 ## User Preferences
 
