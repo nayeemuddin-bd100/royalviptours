@@ -13,6 +13,7 @@ export default function AuthPage() {
   const [, setLocation] = useLocation();
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [userType, setUserType] = useState<"user" | "agency">("user");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerName, setRegisterName] = useState("");
@@ -28,6 +29,7 @@ export default function AuthPage() {
     await loginMutation.mutateAsync({
       email: loginEmail,
       password: loginPassword,
+      userType,
     });
   };
 
@@ -71,6 +73,26 @@ export default function AuthPage() {
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="flex gap-2 p-1 bg-muted rounded-lg">
+                      <Button
+                        type="button"
+                        variant={userType === "user" ? "default" : "ghost"}
+                        className="flex-1"
+                        onClick={() => setUserType("user")}
+                        data-testid="button-user-type-supplier"
+                      >
+                        Supplier Login
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={userType === "agency" ? "default" : "ghost"}
+                        className="flex-1"
+                        onClick={() => setUserType("agency")}
+                        data-testid="button-user-type-agency"
+                      >
+                        Agency Login
+                      </Button>
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="login-email">Email</Label>
                       <Input

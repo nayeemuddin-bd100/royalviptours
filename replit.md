@@ -8,7 +8,16 @@ The application serves as a productivity-focused information management system f
 
 ## Recent Progress (November 20, 2025)
 
-**Completed: Supplier Catalog Management - Transport Module**
+**Completed: Agency Authentication System**
+- Implemented dual authentication supporting both suppliers and travel agencies
+- JWT tokens now include userType field ("user" or "agency")
+- Auth middleware loads from correct table (users or agency_contacts) based on userType
+- Created agency login endpoint (POST /api/agency/login) with separate token generation
+- Built agency dashboard page with stats overview and empty state CTAs
+- Removed FK constraint from refresh_tokens.user_id to support both user types
+- End-to-end test passed: agency login → dashboard display → refresh token creation
+
+**Previous: Supplier Catalog Management - Transport Module**
 - Implemented full transport supplier dashboard with role-based access
 - Transport suppliers can manage routes (products) and fleet (vehicles)
 - Fixed critical tenant loading bug in AuthProvider (removed initialData)
@@ -17,9 +26,12 @@ The application serves as a productivity-focused information management system f
 - End-to-end test passed: login → create route → create vehicle → DB verification
 
 **Recommended Future Improvements**:
-- Harden numeric field validation (basePrice, duration, size) with zod schemas
-- Refactor forms to use shadcn Form with react-hook-form + zodResolver
-- Add tests for invalid payloads and tenant leakage scenarios
+- Security: Migrate from localStorage-based tokens to HttpOnly cookies for XSS protection
+- Security: Move refresh token storage entirely server-side (currently exposed in localStorage)
+- Database: Add userType discriminator to refresh_tokens or split into separate tables for referential integrity
+- Validation: Harden numeric field validation (basePrice, duration, size) with zod schemas
+- Forms: Refactor forms to use shadcn Form with react-hook-form + zodResolver
+- Testing: Add tests for invalid payloads and tenant leakage scenarios
 
 ## User Preferences
 

@@ -33,8 +33,8 @@ export function comparePassword(password: string, hash: string): boolean {
   return bcrypt.compareSync(password, hash);
 }
 
-export function generateAccessToken(userId: string): string {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
+export function generateAccessToken(userId: string, userType: "user" | "agency" = "user"): string {
+  return jwt.sign({ userId, userType }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
 }
 
 function hashRefreshToken(token: string): string {
@@ -107,9 +107,9 @@ export async function revokeAllUserTokens(userId: string): Promise<void> {
     );
 }
 
-export function verifyToken(token: string): { userId: string } | null {
+export function verifyToken(token: string): { userId: string; userType?: string } | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as { userId: string };
+    return jwt.verify(token, JWT_SECRET) as { userId: string; userType?: string };
   } catch {
     return null;
   }

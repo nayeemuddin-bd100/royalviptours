@@ -25,9 +25,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = authHeader.substring(7);
       const payload = verifyToken(token);
       if (payload) {
-        const [user] = await db.select().from(users).where(eq(users.id, payload.userId));
-        if (user) {
-          req.user = user;
+        if (payload.userType === "agency") {
+          // Load agency contact
+          const [contact] = await db.select().from(agencyContacts).where(eq(agencyContacts.id, payload.userId));
+          if (contact) {
+            // Map agency contact to user-like structure for compatibility
+            req.user = {
+              id: contact.id,
+              email: contact.email,
+              name: contact.name,
+              role: "user", // Agency contacts are treated as regular users for auth purposes
+              status: contact.status,
+            } as any;
+          }
+        } else {
+          // Load regular user
+          const [user] = await db.select().from(users).where(eq(users.id, payload.userId));
+          if (user) {
+            req.user = user;
+          }
         }
       }
     }
@@ -133,9 +149,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Agency login
+  app.post("/api/agency/login", async (req, res, next) => {
+    try {
+      const { email, password } = z.object({
+        email: z.string().email(),
+        password: z.string(),
+      }).parse(req.body);
+
+      const [contact] = await db
+        .select({
+          id: agencyContacts.id,
+          agencyId: agencyContacts.agencyId,
+          name: agencyContacts.name,
+          title: agencyContacts.title,
+          email: agencyContacts.email,
+          password: agencyContacts.password,
+          status: agencyContacts.status,
+        })
+        .from(agencyContacts)
+        .where(eq(agencyContacts.email, email));
+      
+      if (!contact || !comparePassword(password, contact.password)) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      if (contact.status !== "active") {
+        return res.status(403).json({ message: "Account is not active. Please verify your email." });
+      }
+
+      // Get agency details
+      const [agency] = await db
+        .select()
+        .from(agencies)
+        .where(eq(agencies.id, contact.agencyId));
+
+      // Generate tokens using contact ID as the "user" ID
+      const accessToken = generateAccessToken(contact.id, "agency");
+      const refreshToken = await generateRefreshToken(contact.id);
+      
+      const { password: _, ...contactWithoutPassword } = contact;
+      
+      res.json({ 
+        ...contactWithoutPassword,
+        agency,
+        accessToken, 
+        refreshToken,
+        userType: "agency"
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.get("/api/user", requireAuth, async (req: AuthRequest, res) => {
     const { password, ...userWithoutPassword } = req.user!;
     res.json(userWithoutPassword);
+  });
+
+  // Get agency contact details
+  app.get("/api/agency/contact", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const contactId = req.user!.id;
+      
+      const [contact] = await db
+        .select({
+          id: agencyContacts.id,
+          agencyId: agencyContacts.agencyId,
+          name: agencyContacts.name,
+          title: agencyContacts.title,
+          email: agencyContacts.email,
+          altEmail: agencyContacts.altEmail,
+          mobile: agencyContacts.mobile,
+          officePhone: agencyContacts.officePhone,
+          preferredChannel: agencyContacts.preferredChannel,
+          status: agencyContacts.status,
+        })
+        .from(agencyContacts)
+        .where(eq(agencyContacts.id, contactId));
+
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      // Get agency details
+      const [agency] = await db
+        .select()
+        .from(agencies)
+        .where(eq(agencies.id, contact.agencyId));
+
+      res.json({ contact, agency });
+    } catch (error: any) {
+      next(error);
+    }
   });
 
   app.get("/api/user/tenants", requireAuth, async (req: AuthRequest, res, next) => {

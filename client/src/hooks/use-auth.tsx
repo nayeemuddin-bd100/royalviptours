@@ -31,7 +31,7 @@ type AuthContextType = {
   registerMutation: UseMutationResult<SelectUser, Error, InsertUser>;
 };
 
-type LoginData = Pick<InsertUser, "email" | "password">;
+type LoginData = Pick<InsertUser, "email" | "password"> & { userType?: string };
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -72,8 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginMutation = useMutation({
-    mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
+    mutationFn: async (credentials: LoginData & { userType?: string }) => {
+      const endpoint = credentials.userType === "agency" ? "/api/agency/login" : "/api/login";
+      const { userType, ...creds } = credentials;
+      const res = await apiRequest("POST", endpoint, creds);
       return await res.json();
     },
     onSuccess: (data: any) => {
@@ -83,11 +85,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.refreshToken) {
         setRefreshToken(data.refreshToken);
       }
-      const { accessToken, refreshToken: _, ...user } = data;
+      
+      // Store user type for routing
+      if (data.userType === "agency") {
+        localStorage.setItem("user_type", "agency");
+      } else {
+        localStorage.setItem("user_type", "user");
+      }
+      
+      const { accessToken, refreshToken: _, userType, agency, ...user } = data;
       queryClient.setQueryData(["/api/user"], user);
+      
       toast({
         title: "Welcome back!",
-        description: "You've successfully logged in.",
+        description: data.userType === "agency" ? `Welcome, ${user.name}` : "You've successfully logged in.",
       });
     },
     onError: (error: Error) => {
