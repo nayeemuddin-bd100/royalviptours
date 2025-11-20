@@ -21,6 +21,7 @@ export interface TenantContext {
 
 export interface AuthRequest extends Request {
   user?: User;
+  tenantId?: string;
   tenantContext?: TenantContext;
 }
 
@@ -160,6 +161,7 @@ export function requireTenantRole(...allowedRoles: string[]) {
       return res.status(403).json({ message: `This action requires one of the following roles: ${allowedRoles.join(', ')}` });
     }
 
+    req.tenantId = userTenant.tenantId;
     req.tenantContext = {
       tenantId: userTenant.tenantId,
       tenantRole: userTenant.tenantRole

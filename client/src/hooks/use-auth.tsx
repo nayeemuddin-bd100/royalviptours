@@ -21,6 +21,7 @@ type UserTenant = {
 type AuthContextType = {
   user: SelectUser | null;
   isLoading: boolean;
+  isTenantsLoading: boolean;
   error: Error | null;
   userTenants: UserTenant[];
   activeTenantId: string | null;
@@ -45,10 +46,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
 
-  const { data: userTenants = [] } = useQuery<UserTenant[]>({
+  const { 
+    data: userTenants = [], 
+    isLoading: isTenantsLoading 
+  } = useQuery<UserTenant[]>({
     queryKey: ["/api/user/tenants"],
     enabled: !!user,
-    initialData: [],
   });
 
   const [activeTenantId, setActiveTenantIdState] = useState<string | null>(getActiveTenant());
@@ -154,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user: user ?? null,
         isLoading,
+        isTenantsLoading,
         error,
         userTenants,
         activeTenantId,

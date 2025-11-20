@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { db } from "./db";
 import { 
   users, tenants, userTenants, cities, airports, eventCategories, amenities,
-  transportCompanies, transportProducts, hotels, roomTypes, mealPlans, hotelRates,
+  transportCompanies, transportProducts, fleets, hotels, roomTypes, mealPlans, hotelRates,
   tourGuides, sights, itineraries, itineraryDays, itineraryEvents, 
   rfqs, rfqSegments, quotes, agencies, agencyContacts, agencyAddresses,
   insertUserSchema, insertTenantSchema, insertCitySchema, insertAirportSchema,
@@ -340,6 +340,271 @@ export async function registerRoutes(app: Express): Promise<Server> {
         contactEmail: contact.email,
       });
     } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // ===== User Tenants Route ===== (defined earlier in file at line ~141)
+
+  // ===== Supplier Routes - Transport =====
+
+  // Get transport products for current user's transport company
+  app.get("/api/supplier/transport/products", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
+    try {
+      const tenantId = req.tenantId!;
+      
+      // Get or create transport company for this tenant
+      let [company] = await db
+        .select()
+        .from(transportCompanies)
+        .where(eq(transportCompanies.tenantId, tenantId));
+
+      if (!company) {
+        // Create default transport company for this tenant
+        [company] = await db.insert(transportCompanies).values({
+          tenantId,
+          name: `Transport Company - ${req.user!.email}`,
+        }).returning();
+      }
+
+      const products = await db
+        .select()
+        .from(transportProducts)
+        .where(eq(transportProducts.transportCompanyId, company.id));
+
+      res.json(products);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create transport product
+  app.post("/api/supplier/transport/products", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
+    try {
+      const tenantId = req.tenantId!;
+
+      // Get or create transport company
+      let [company] = await db
+        .select()
+        .from(transportCompanies)
+        .where(eq(transportCompanies.tenantId, tenantId));
+
+      if (!company) {
+        [company] = await db.insert(transportCompanies).values({
+          tenantId,
+          name: `Transport Company - ${req.user!.email}`,
+        }).returning();
+      }
+
+      const schema = z.object({
+        name: z.string().min(1),
+        productType: z.enum(["airport_transfer", "point_to_point", "intercity", "hourly", "rail_escort", "ferry", "heli", "accessible"]),
+        fromLocation: z.string().optional(),
+        toLocation: z.string().optional(),
+        baseDurationMin: z.string().optional(),
+        basePrice: z.string().optional(),
+        priceUnit: z.enum(["per_transfer", "per_hour", "per_km"]),
+        notes: z.string().optional(),
+      });
+
+      const data = schema.parse(req.body);
+
+      const [product] = await db.insert(transportProducts).values({
+        tenantId,
+        transportCompanyId: company.id,
+        name: data.name,
+        productType: data.productType,
+        fromLocation: data.fromLocation || null,
+        toLocation: data.toLocation || null,
+        baseDurationMin: data.baseDurationMin ? parseInt(data.baseDurationMin) : null,
+        basePrice: data.basePrice || null,
+        priceUnit: data.priceUnit,
+        notes: data.notes || null,
+      }).returning();
+
+      res.json(product);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update transport product
+  app.patch("/api/supplier/transport/products/:id", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const tenantId = req.tenantId!;
+
+      const schema = z.object({
+        name: z.string().min(1).optional(),
+        productType: z.enum(["airport_transfer", "point_to_point", "intercity", "hourly", "rail_escort", "ferry", "heli", "accessible"]).optional(),
+        fromLocation: z.string().optional(),
+        toLocation: z.string().optional(),
+        baseDurationMin: z.string().optional(),
+        basePrice: z.string().optional(),
+        priceUnit: z.enum(["per_transfer", "per_hour", "per_km"]).optional(),
+        notes: z.string().optional(),
+      });
+
+      const data = schema.parse(req.body);
+      const updates: any = {};
+
+      if (data.name) updates.name = data.name;
+      if (data.productType) updates.productType = data.productType;
+      if (data.fromLocation !== undefined) updates.fromLocation = data.fromLocation || null;
+      if (data.toLocation !== undefined) updates.toLocation = data.toLocation || null;
+      if (data.baseDurationMin !== undefined) updates.baseDurationMin = data.baseDurationMin ? parseInt(data.baseDurationMin) : null;
+      if (data.basePrice !== undefined) updates.basePrice = data.basePrice || null;
+      if (data.priceUnit) updates.priceUnit = data.priceUnit;
+      if (data.notes !== undefined) updates.notes = data.notes || null;
+
+      const [product] = await db
+        .update(transportProducts)
+        .set(updates)
+        .where(and(eq(transportProducts.id, id), eq(transportProducts.tenantId, tenantId)))
+        .returning();
+
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      res.json(product);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete transport product
+  app.delete("/api/supplier/transport/products/:id", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const tenantId = req.tenantId!;
+
+      await db
+        .delete(transportProducts)
+        .where(and(eq(transportProducts.id, id), eq(transportProducts.tenantId, tenantId)));
+
+      res.json({ message: "Product deleted" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get fleet vehicles
+  app.get("/api/supplier/transport/fleet", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
+    try {
+      const tenantId = req.tenantId!;
+
+      // Get or create transport company
+      let [company] = await db
+        .select()
+        .from(transportCompanies)
+        .where(eq(transportCompanies.tenantId, tenantId));
+
+      if (!company) {
+        [company] = await db.insert(transportCompanies).values({
+          tenantId,
+          name: `Transport Company - ${req.user!.email}`,
+        }).returning();
+      }
+
+      const vehicles = await db
+        .select()
+        .from(fleets)
+        .where(eq(fleets.transportCompanyId, company.id));
+
+      res.json(vehicles);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create fleet vehicle
+  app.post("/api/supplier/transport/fleet", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
+    try {
+      const tenantId = req.tenantId!;
+
+      // Get or create transport company
+      let [company] = await db
+        .select()
+        .from(transportCompanies)
+        .where(eq(transportCompanies.tenantId, tenantId));
+
+      if (!company) {
+        [company] = await db.insert(transportCompanies).values({
+          tenantId,
+          name: `Transport Company - ${req.user!.email}`,
+        }).returning();
+      }
+
+      const schema = z.object({
+        vehicleType: z.string().min(1),
+        size: z.string().min(1),
+        features: z.string().optional(),
+      });
+
+      const data = schema.parse(req.body);
+
+      const [vehicle] = await db.insert(fleets).values({
+        tenantId,
+        transportCompanyId: company.id,
+        vehicleType: data.vehicleType,
+        size: parseInt(data.size),
+        features: data.features ? JSON.parse(data.features) : null,
+      }).returning();
+
+      res.json(vehicle);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update fleet vehicle
+  app.patch("/api/supplier/transport/fleet/:id", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const tenantId = req.tenantId!;
+
+      const schema = z.object({
+        vehicleType: z.string().min(1).optional(),
+        size: z.string().optional(),
+        features: z.string().optional(),
+      });
+
+      const data = schema.parse(req.body);
+      const updates: any = {};
+
+      if (data.vehicleType) updates.vehicleType = data.vehicleType;
+      if (data.size) updates.size = parseInt(data.size);
+      if (data.features !== undefined) updates.features = data.features ? JSON.parse(data.features) : null;
+
+      const [vehicle] = await db
+        .update(fleets)
+        .set(updates)
+        .where(and(eq(fleets.id, id), eq(fleets.tenantId, tenantId)))
+        .returning();
+
+      if (!vehicle) {
+        return res.status(404).json({ message: "Vehicle not found" });
+      }
+
+      res.json(vehicle);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete fleet vehicle
+  app.delete("/api/supplier/transport/fleet/:id", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const tenantId = req.tenantId!;
+
+      await db
+        .delete(fleets)
+        .where(and(eq(fleets.id, id), eq(fleets.tenantId, tenantId)));
+
+      res.json({ message: "Vehicle deleted" });
+    } catch (error) {
       next(error);
     }
   });

@@ -15,6 +15,7 @@ import UsersPage from "@/pages/admin/users-page";
 import ItinerariesPage from "@/pages/itineraries-page";
 import QuotesPage from "@/pages/quotes-page";
 import AgencyRegistrationPage from "@/pages/agency-registration-page";
+import SupplierDashboard from "@/pages/supplier-dashboard";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
       <ProtectedRoute path="/" component={HomePage} />
       <ProtectedRoute path="/admin/tenants" component={TenantsPage} />
       <ProtectedRoute path="/admin/users" component={UsersPage} />
+      <ProtectedRoute path="/supplier" component={SupplierDashboard} />
       <ProtectedRoute path="/itineraries" component={ItinerariesPage} />
       <ProtectedRoute path="/quotes" component={QuotesPage} />
       <Route component={NotFound} />

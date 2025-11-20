@@ -6,6 +6,21 @@ Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline gro
 
 The application serves as a productivity-focused information management system for the travel industry, enabling efficient collaboration between country managers who coordinate local suppliers and travel agencies requesting services.
 
+## Recent Progress (November 20, 2025)
+
+**Completed: Supplier Catalog Management - Transport Module**
+- Implemented full transport supplier dashboard with role-based access
+- Transport suppliers can manage routes (products) and fleet (vehicles)
+- Fixed critical tenant loading bug in AuthProvider (removed initialData)
+- Added req.tenantId to requireTenantRole middleware for proper tenant isolation
+- All transport data is properly tenant-scoped with X-Tenant-Id header validation
+- End-to-end test passed: login → create route → create vehicle → DB verification
+
+**Recommended Future Improvements**:
+- Harden numeric field validation (basePrice, duration, size) with zod schemas
+- Refactor forms to use shadcn Form with react-hook-form + zodResolver
+- Add tests for invalid payloads and tenant leakage scenarios
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

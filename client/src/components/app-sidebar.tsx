@@ -28,6 +28,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useLocation } from "wouter";
@@ -38,6 +39,13 @@ const adminItems = [
   { title: "Tenants", url: "/admin/tenants", icon: Globe },
   { title: "Users", url: "/admin/users", icon: Users },
   { title: "Audit Logs", url: "/admin/audit", icon: FileText },
+];
+
+// Supplier navigation items (generic for all supplier types)
+const supplierItems = [
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "My Catalog", url: "/supplier", icon: Building2 },
+  { title: "Incoming RFQs", url: "/supplier/rfqs", icon: FileText },
 ];
 
 // Country Manager navigation items
@@ -87,14 +95,33 @@ export function AppSidebar() {
   const { user, logoutMutation } = useAuth();
   const [location] = useLocation();
 
+  // Fetch user's tenant assignments to determine navigation
+  const { data: userTenants } = useQuery({
+    queryKey: ['/api/user/tenants'],
+    enabled: !!user && user.role !== 'admin',
+  });
+
   // Determine navigation items based on user role
   const getNavigationItems = () => {
     if (!user) return [];
     
-    // For now, we'll default to agency items
-    // In a real app, you'd check user.role and user_tenants to determine the correct nav
     if (user.role === "admin") {
       return adminItems;
+    }
+
+    // Check if user has any supplier roles
+    if (userTenants && userTenants.length > 0) {
+      const hasSupplierRole = userTenants.some((ut: any) => 
+        ['transport', 'hotel', 'guide', 'sight'].includes(ut.tenantRole)
+      );
+      if (hasSupplierRole) {
+        return supplierItems;
+      }
+
+      const hasManagerRole = userTenants.some((ut: any) => ut.tenantRole === 'country_manager');
+      if (hasManagerRole) {
+        return managerItems;
+      }
     }
     
     // Default to agency
