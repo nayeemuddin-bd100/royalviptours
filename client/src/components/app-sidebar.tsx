@@ -14,6 +14,8 @@ import {
   Landmark,
   Globe,
   ClipboardList,
+  Database,
+  Inbox,
 } from "lucide-react";
 import {
   Sidebar,
@@ -51,10 +53,7 @@ const supplierItems = [
 // Country Manager navigation items
 const managerItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Cities & Airports", url: "/catalog/cities", icon: MapPin },
-  { title: "Event Categories", url: "/catalog/events", icon: ClipboardList },
-  { title: "Suppliers", url: "/suppliers", icon: Building2 },
-  { title: "Pending RFQs", url: "/rfqs", icon: FileText },
+  { title: "Country Catalog", url: "/country-manager/catalog", icon: Database },
 ];
 
 // Transport Company navigation items

@@ -51,14 +51,19 @@ The application serves as a productivity-focused information management system f
 - Proper tenant isolation with X-Tenant-Id header validation
 - End-to-end test passed: login → create route → create vehicle → DB verification
 
+**In Progress: Country Manager Catalog Frontend**
+- Cities component completed with shadcn Form + zodResolver validation
+- Airports, Event Categories, Amenities components need Form refactoring
+- All components use proper tenant scoping and React Query
+- Sidebar navigation updated to remove non-existent routes
+
 **Recommended Future Improvements**:
 - Security: Migrate from localStorage-based tokens to HttpOnly cookies for XSS protection
 - Security: Move refresh token storage entirely server-side (currently exposed in localStorage)
 - Database: Add userType discriminator to refresh_tokens or split into separate tables for referential integrity
 - Itineraries: Add UI feedback when date changes are blocked due to existing events
 - Itineraries: Add regression tests for date changes with/without events
-- Validation: Harden numeric field validation with zod schemas across all forms
-- Forms: Refactor remaining forms to use shadcn Form with react-hook-form + zodResolver
+- Forms: Complete Form refactoring for airports, event categories, and amenities components
 
 ## User Preferences
 
