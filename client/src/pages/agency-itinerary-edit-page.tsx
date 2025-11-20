@@ -256,7 +256,14 @@ export default function AgencyItineraryEditPage() {
               <p className="text-muted-foreground mt-2">{itinerary.notes}</p>
             )}
           </div>
-          <Badge>{itinerary.status}</Badge>
+          <div className="flex items-center gap-3">
+            <Badge>{itinerary.status}</Badge>
+            <Link href={`/rfqs?from_itinerary=${itineraryId}`}>
+              <Button variant="outline" data-testid="button-create-rfq">
+                Request Quotes
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 

@@ -87,7 +87,8 @@ const guideItems = [
 const agencyItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "My Itineraries", url: "/itineraries", icon: Calendar },
-  { title: "Quotes", url: "/quotes", icon: FileText },
+  { title: "RFQs", url: "/rfqs", icon: FileText },
+  { title: "Quotes", url: "/quotes", icon: ClipboardList },
   { title: "Account", url: "/agency/account", icon: Building2 },
 ];
 

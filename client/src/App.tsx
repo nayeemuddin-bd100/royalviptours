@@ -21,6 +21,8 @@ import AgencyAccountPage from "@/pages/agency-account-page";
 import AgencyItinerariesPage from "@/pages/agency-itineraries-page";
 import AgencyItineraryNewPage from "@/pages/agency-itinerary-new-page";
 import AgencyItineraryEditPage from "@/pages/agency-itinerary-edit-page";
+import AgencyRfqsPage from "@/pages/agency-rfqs-page";
+import AgencyRfqDetailPage from "@/pages/agency-rfq-detail-page";
 
 function Router() {
   return (
@@ -36,6 +38,8 @@ function Router() {
       <ProtectedRoute path="/itineraries/new" component={AgencyItineraryNewPage} />
       <ProtectedRoute path="/itineraries/:id" component={AgencyItineraryEditPage} />
       <ProtectedRoute path="/itineraries" component={AgencyItinerariesPage} />
+      <ProtectedRoute path="/rfqs/:id" component={AgencyRfqDetailPage} />
+      <ProtectedRoute path="/rfqs" component={AgencyRfqsPage} />
       <ProtectedRoute path="/quotes" component={QuotesPage} />
       <Route component={NotFound} />
     </Switch>

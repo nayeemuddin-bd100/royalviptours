@@ -876,7 +876,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expiresAt: z.string().optional(),
       }).parse(req.body);
 
-      // Verify itinerary belongs to agency
+      // Critical security check: Verify itinerary belongs to THIS agency
       const [itinerary] = await db
         .select()
         .from(itineraries)
@@ -886,7 +886,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ));
 
       if (!itinerary) {
-        return res.status(404).json({ message: "Itinerary not found" });
+        return res.status(403).json({ message: "Access denied: Itinerary not found or does not belong to your agency" });
+      }
+
+      // Check for existing RFQ for this itinerary
+      const existingRfq = await db
+        .select()
+        .from(rfqs)
+        .where(eq(rfqs.itineraryId, itineraryId))
+        .limit(1);
+
+      if (existingRfq.length > 0) {
+        return res.status(400).json({ message: "RFQ already exists for this itinerary" });
       }
 
       // Get all events from the itinerary
@@ -1918,7 +1929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user!.id;
 
       const quoteData = z.object({
-        proposedPrice: z.number(),
+        proposedPrice: z.number().positive().finite(),
         supplierNotes: z.string().optional(),
       }).parse(req.body);
 
@@ -1976,7 +1987,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [updatedSegment] = await db
         .update(rfqSegments)
         .set({
-          proposedPrice: quoteData.proposedPrice,
+          proposedPrice: quoteData.proposedPrice.toString(),
           supplierNotes: quoteData.supplierNotes || null,
           status: "supplier_proposed",
           updatedAt: new Date(),
