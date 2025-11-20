@@ -8,7 +8,23 @@ The application serves as a productivity-focused information management system f
 
 ## Recent Progress (November 20, 2025)
 
-**Completed: Itinerary Builder for Travel Agencies**
+**Completed: All Supplier Catalog Management & Country Manager Features**
+- **Tour Guide Management** - Full CRUD for guide profiles, languages, specialties, daily fees
+- **Sight Management** - Full CRUD for attractions with entry fees, operating hours, JSON-based data
+- **Country Manager Catalog** - Complete CRUD for cities, airports, event categories, amenities
+- **Backend Routes** - 12 new endpoints for country manager catalog with proper tenant isolation:
+  - Cities: GET, POST, PATCH, DELETE
+  - Airports: GET, POST, PATCH, DELETE (with updatedAt maintenance)
+  - Event Categories: GET, POST, PATCH, DELETE (tenant-scoped, country_manager role)
+  - Amenities: GET, POST, PATCH, DELETE (tenant-scoped, country_manager role)
+- **Security Hardening**:
+  - Fixed tenant isolation on all catalog routes (prevented cross-tenant data access)
+  - Fixed tenantId reassignment vulnerability on PATCH endpoints
+  - Added updatedAt timestamp maintenance on all updates
+  - Fixed numeric field validation (feePerDay, tipsPerDay now parsed as floats)
+- Architect approved with "Pass" verdict after security fixes verified
+
+**Previous: Itinerary Builder for Travel Agencies**
 - Full CRUD itinerary management system with 10 backend API endpoints
 - List page showing all agency itineraries with status badges and actions
 - Create page with tenant selection, date range, and passenger count inputs
