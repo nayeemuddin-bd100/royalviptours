@@ -88,15 +88,24 @@ const agencyItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "My Itineraries", url: "/itineraries", icon: Calendar },
   { title: "Quotes", url: "/quotes", icon: FileText },
-  { title: "Account", url: "/agency/profile", icon: Building2 },
+  { title: "Account", url: "/agency/account", icon: Building2 },
 ];
+
+interface UserTenant {
+  id: string;
+  tenantId: string;
+  tenantRole: string;
+  tenantName: string;
+  tenantCountryCode: string;
+  tenantStatus: string;
+}
 
 export function AppSidebar() {
   const { user, logoutMutation } = useAuth();
   const [location] = useLocation();
 
   // Fetch user's tenant assignments to determine navigation
-  const { data: userTenants } = useQuery({
+  const { data: userTenants } = useQuery<UserTenant[]>({
     queryKey: ['/api/user/tenants'],
     enabled: !!user && user.role !== 'admin',
   });
@@ -111,14 +120,14 @@ export function AppSidebar() {
 
     // Check if user has any supplier roles
     if (userTenants && userTenants.length > 0) {
-      const hasSupplierRole = userTenants.some((ut: any) => 
+      const hasSupplierRole = userTenants.some((ut) => 
         ['transport', 'hotel', 'guide', 'sight'].includes(ut.tenantRole)
       );
       if (hasSupplierRole) {
         return supplierItems;
       }
 
-      const hasManagerRole = userTenants.some((ut: any) => ut.tenantRole === 'country_manager');
+      const hasManagerRole = userTenants.some((ut) => ut.tenantRole === 'country_manager');
       if (hasManagerRole) {
         return managerItems;
       }

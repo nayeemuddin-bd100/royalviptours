@@ -170,3 +170,22 @@ export function requireTenantRole(...allowedRoles: string[]) {
     next();
   };
 }
+
+// Middleware to ensure request is from an agency contact and has agencyId
+export function requireAgencyContact(req: AuthRequest, res: Response, next: NextFunction) {
+  if (!req.user) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+  
+  // Check if user is an agency contact
+  if (!(req.user as any).userType || (req.user as any).userType !== "agency") {
+    return res.status(403).json({ message: "This endpoint is only accessible to agency contacts" });
+  }
+  
+  // Verify agencyId is present
+  if (!(req.user as any).agencyId) {
+    return res.status(403).json({ message: "Agency context not found" });
+  }
+  
+  next();
+}
