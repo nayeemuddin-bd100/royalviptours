@@ -1173,6 +1173,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Accept or reject a quote (RFQ segment)
+  app.patch("/api/agency/rfq-segments/:id/status", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const agencyId = (req.user as any).agencyId;
+      const { status } = z.object({
+        status: z.enum(["accepted", "rejected"]),
+      }).parse(req.body);
+
+      // Get the segment and verify it belongs to this agency's RFQ
+      const [segment] = await db
+        .select({
+          segment: rfqSegments,
+          rfq: rfqs,
+        })
+        .from(rfqSegments)
+        .innerJoin(rfqs, eq(rfqSegments.rfqId, rfqs.id))
+        .where(eq(rfqSegments.id, id));
+
+      if (!segment) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+
+      if (segment.rfq.agencyId !== agencyId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      // Can only accept/reject quotes that have been proposed
+      if (segment.segment.status !== "supplier_proposed") {
+        return res.status(400).json({ message: "Can only accept/reject proposed quotes" });
+      }
+
+      // Update segment status
+      const [updatedSegment] = await db
+        .update(rfqSegments)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(rfqSegments.id, id))
+        .returning();
+
+      res.json(updatedSegment);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.get("/api/user/tenants", requireAuth, async (req: AuthRequest, res, next) => {
     try {
       const userTenantsData = await db
@@ -1724,22 +1769,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/catalog/airports/:id", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const body = insertAirportSchema.omit({ tenantId: true }).partial().parse(req.body);
+      const [airport] = await db.update(airports).set({ ...body, updatedAt: new Date() }).where(
+        and(eq(airports.id, id), eq(airports.tenantId, req.tenantContext!.tenantId))
+      ).returning();
+      if (!airport) {
+        return res.status(404).json({ message: "Airport not found" });
+      }
+      res.json(airport);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/catalog/airports/:id", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      await db.delete(airports).where(
+        and(eq(airports.id, id), eq(airports.tenantId, req.tenantContext!.tenantId))
+      );
+      res.json({ message: "Airport deleted" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // ===== Catalog Routes - Event Categories =====
   
-  app.get("/api/catalog/event-categories", requireAuth, async (req, res, next) => {
+  app.get("/api/catalog/event-categories", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
     try {
-      const categories = await db.select().from(eventCategories).orderBy(eventCategories.name);
+      const categories = await db.select().from(eventCategories)
+        .where(eq(eventCategories.tenantId, req.tenantContext!.tenantId))
+        .orderBy(eventCategories.name);
       res.json(categories);
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.post("/api/catalog/event-categories", requireAuth, async (req, res, next) => {
+  app.post("/api/catalog/event-categories", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
     try {
       const body = insertEventCategorySchema.parse(req.body);
-      const [category] = await db.insert(eventCategories).values(body).returning();
+      const [category] = await db.insert(eventCategories).values({
+        ...body,
+        tenantId: req.tenantContext!.tenantId
+      }).returning();
       res.json(category);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/catalog/event-categories/:id", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const body = insertEventCategorySchema.omit({ tenantId: true }).partial().parse(req.body);
+      const [category] = await db.update(eventCategories).set({ ...body, updatedAt: new Date() }).where(
+        and(eq(eventCategories.id, id), eq(eventCategories.tenantId, req.tenantContext!.tenantId))
+      ).returning();
+      if (!category) {
+        return res.status(404).json({ message: "Event category not found" });
+      }
+      res.json(category);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/catalog/event-categories/:id", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      await db.delete(eventCategories).where(
+        and(eq(eventCategories.id, id), eq(eventCategories.tenantId, req.tenantContext!.tenantId))
+      );
+      res.json({ message: "Event category deleted" });
     } catch (error: any) {
       next(error);
     }
@@ -1747,20 +1853,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Catalog Routes - Amenities =====
   
-  app.get("/api/catalog/amenities", requireAuth, async (req, res, next) => {
+  app.get("/api/catalog/amenities", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
     try {
-      const allAmenities = await db.select().from(amenities).orderBy(amenities.category, amenities.name);
+      const allAmenities = await db.select().from(amenities)
+        .where(eq(amenities.tenantId, req.tenantContext!.tenantId))
+        .orderBy(amenities.category, amenities.name);
       res.json(allAmenities);
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.post("/api/catalog/amenities", requireAuth, async (req, res, next) => {
+  app.post("/api/catalog/amenities", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
     try {
       const body = insertAmenitySchema.parse(req.body);
-      const [amenity] = await db.insert(amenities).values(body).returning();
+      const [amenity] = await db.insert(amenities).values({
+        ...body,
+        tenantId: req.tenantContext!.tenantId
+      }).returning();
       res.json(amenity);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/catalog/amenities/:id", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const body = insertAmenitySchema.omit({ tenantId: true }).partial().parse(req.body);
+      const [amenity] = await db.update(amenities).set({ ...body, updatedAt: new Date() }).where(
+        and(eq(amenities.id, id), eq(amenities.tenantId, req.tenantContext!.tenantId))
+      ).returning();
+      if (!amenity) {
+        return res.status(404).json({ message: "Amenity not found" });
+      }
+      res.json(amenity);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/catalog/amenities/:id", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      await db.delete(amenities).where(
+        and(eq(amenities.id, id), eq(amenities.tenantId, req.tenantContext!.tenantId))
+      );
+      res.json({ message: "Amenity deleted" });
     } catch (error: any) {
       next(error);
     }
@@ -2395,6 +2534,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get single hotel
+  app.get("/api/hotels/:id", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const [hotel] = await db.select().from(hotels).where(
+        and(eq(hotels.id, id), eq(hotels.tenantId, req.tenantContext!.tenantId))
+      );
+      if (!hotel) {
+        return res.status(404).json({ message: "Hotel not found" });
+      }
+      res.json(hotel);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Update hotel
+  app.patch("/api/hotels/:id", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const body = insertHotelSchema.partial().parse(req.body);
+      const [hotel] = await db.update(hotels).set({ ...body, updatedAt: new Date() }).where(
+        and(eq(hotels.id, id), eq(hotels.tenantId, req.tenantContext!.tenantId))
+      ).returning();
+      if (!hotel) {
+        return res.status(404).json({ message: "Hotel not found" });
+      }
+      res.json(hotel);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Delete hotel
+  app.delete("/api/hotels/:id", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      await db.delete(hotels).where(
+        and(eq(hotels.id, id), eq(hotels.tenantId, req.tenantContext!.tenantId))
+      );
+      res.json({ message: "Hotel deleted" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Update room type
+  app.patch("/api/hotels/:hotelId/room-types/:id", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
+    try {
+      const { hotelId, id } = req.params;
+      // Verify hotel belongs to user's tenant
+      const [hotel] = await db.select().from(hotels).where(
+        and(eq(hotels.id, hotelId), eq(hotels.tenantId, req.tenantContext!.tenantId))
+      );
+      if (!hotel) {
+        return res.status(404).json({ message: "Hotel not found" });
+      }
+      const body = insertRoomTypeSchema.partial().parse(req.body);
+      const [room] = await db.update(roomTypes).set({ ...body, updatedAt: new Date() }).where(
+        and(eq(roomTypes.id, id), eq(roomTypes.hotelId, hotelId))
+      ).returning();
+      if (!room) {
+        return res.status(404).json({ message: "Room type not found" });
+      }
+      res.json(room);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Delete room type
+  app.delete("/api/hotels/:hotelId/room-types/:id", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
+    try {
+      const { hotelId, id } = req.params;
+      // Verify hotel belongs to user's tenant
+      const [hotel] = await db.select().from(hotels).where(
+        and(eq(hotels.id, hotelId), eq(hotels.tenantId, req.tenantContext!.tenantId))
+      );
+      if (!hotel) {
+        return res.status(404).json({ message: "Hotel not found" });
+      }
+      await db.delete(roomTypes).where(
+        and(eq(roomTypes.id, id), eq(roomTypes.hotelId, hotelId))
+      );
+      res.json({ message: "Room type deleted" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Update rate
+  app.patch("/api/hotels/:hotelId/rates/:id", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
+    try {
+      const { hotelId, id } = req.params;
+      // Verify hotel belongs to user's tenant
+      const [hotel] = await db.select().from(hotels).where(
+        and(eq(hotels.id, hotelId), eq(hotels.tenantId, req.tenantContext!.tenantId))
+      );
+      if (!hotel) {
+        return res.status(404).json({ message: "Hotel not found" });
+      }
+      const body = insertHotelRateSchema.partial().parse(req.body);
+      const [rate] = await db.update(hotelRates).set({ ...body, updatedAt: new Date() }).where(
+        and(eq(hotelRates.id, id), eq(hotelRates.hotelId, hotelId))
+      ).returning();
+      if (!rate) {
+        return res.status(404).json({ message: "Rate not found" });
+      }
+      res.json(rate);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Delete rate
+  app.delete("/api/hotels/:hotelId/rates/:id", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
+    try {
+      const { hotelId, id } = req.params;
+      // Verify hotel belongs to user's tenant
+      const [hotel] = await db.select().from(hotels).where(
+        and(eq(hotels.id, hotelId), eq(hotels.tenantId, req.tenantContext!.tenantId))
+      );
+      if (!hotel) {
+        return res.status(404).json({ message: "Hotel not found" });
+      }
+      await db.delete(hotelRates).where(
+        and(eq(hotelRates.id, id), eq(hotelRates.hotelId, hotelId))
+      );
+      res.json({ message: "Rate deleted" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // ===== Tour Guide Routes =====
   
   app.get("/api/guides", requireAuth, requireTenantRole("guide"), async (req: AuthRequest, res, next) => {
@@ -2421,6 +2694,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/guides/:id", requireAuth, requireTenantRole("guide"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const [guide] = await db.select().from(tourGuides).where(
+        and(eq(tourGuides.id, id), eq(tourGuides.tenantId, req.tenantContext!.tenantId))
+      );
+      if (!guide) {
+        return res.status(404).json({ message: "Guide not found" });
+      }
+      res.json(guide);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/guides/:id", requireAuth, requireTenantRole("guide"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const body = insertTourGuideSchema.partial().parse(req.body);
+      const [guide] = await db.update(tourGuides).set({ ...body, updatedAt: new Date() }).where(
+        and(eq(tourGuides.id, id), eq(tourGuides.tenantId, req.tenantContext!.tenantId))
+      ).returning();
+      if (!guide) {
+        return res.status(404).json({ message: "Guide not found" });
+      }
+      res.json(guide);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/guides/:id", requireAuth, requireTenantRole("guide"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      await db.delete(tourGuides).where(
+        and(eq(tourGuides.id, id), eq(tourGuides.tenantId, req.tenantContext!.tenantId))
+      );
+      res.json({ message: "Guide deleted" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // ===== Sights Routes =====
   
   app.get("/api/sights", requireAuth, requireTenantRole("sight"), async (req: AuthRequest, res, next) => {
@@ -2442,6 +2758,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tenantId: req.tenantContext!.tenantId
       }).returning();
       res.json(sight);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/sights/:id", requireAuth, requireTenantRole("sight"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const [sight] = await db.select().from(sights).where(
+        and(eq(sights.id, id), eq(sights.tenantId, req.tenantContext!.tenantId))
+      );
+      if (!sight) {
+        return res.status(404).json({ message: "Sight not found" });
+      }
+      res.json(sight);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/sights/:id", requireAuth, requireTenantRole("sight"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const body = insertSightSchema.partial().parse(req.body);
+      const [sight] = await db.update(sights).set({ ...body, updatedAt: new Date() }).where(
+        and(eq(sights.id, id), eq(sights.tenantId, req.tenantContext!.tenantId))
+      ).returning();
+      if (!sight) {
+        return res.status(404).json({ message: "Sight not found" });
+      }
+      res.json(sight);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/sights/:id", requireAuth, requireTenantRole("sight"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      await db.delete(sights).where(
+        and(eq(sights.id, id), eq(sights.tenantId, req.tenantContext!.tenantId))
+      );
+      res.json({ message: "Sight deleted" });
     } catch (error: any) {
       next(error);
     }

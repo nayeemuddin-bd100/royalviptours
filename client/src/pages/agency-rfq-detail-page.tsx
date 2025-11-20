@@ -1,10 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Calendar, Users, Package } from "lucide-react";
+import { ArrowLeft, Calendar, Users, Package, Check, X } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 
 interface RfqSegment {
   id: string;
@@ -47,10 +49,44 @@ interface RfqDetail {
 export default function AgencyRfqDetailPage() {
   const [, params] = useRoute("/rfqs/:id");
   const rfqId = params?.id;
+  const { toast } = useToast();
 
   const { data: rfq, isLoading, error } = useQuery<RfqDetail>({
     queryKey: ["/api/agency/rfqs", rfqId],
     enabled: !!rfqId,
+  });
+
+  const updateSegmentStatusMutation = useMutation({
+    mutationFn: async ({ segmentId, status }: { segmentId: string; status: "accepted" | "rejected" }) => {
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch(`/api/agency/rfq-segments/${segmentId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to update quote status");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agency/rfqs", rfqId] });
+      toast({
+        title: "Quote Updated",
+        description: "Quote status has been updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update quote status",
+        variant: "destructive",
+      });
+    },
   });
 
   const getStatusColor = (status: string) => {
@@ -191,7 +227,7 @@ export default function AgencyRfqDetailPage() {
             <Card key={segment.id} data-testid={`card-segment-${segment.id}`}>
               <CardHeader>
                 <div className="flex items-start justify-between">
-                  <div>
+                  <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-lg font-semibold capitalize">
                         {segment.supplierType} Supplier
@@ -207,10 +243,34 @@ export default function AgencyRfqDetailPage() {
                   <div className="text-right">
                     {segment.proposedPrice ? (
                       <>
-                        <p className="text-sm text-muted-foreground">Quoted Price</p>
-                        <p className="text-2xl font-bold" data-testid={`text-segment-price-${segment.id}`}>
+                        <p className="text-sm text-muted-foreground mb-1">Quoted Price</p>
+                        <p className="text-2xl font-bold mb-3" data-testid={`text-segment-price-${segment.id}`}>
                           ${parseFloat(segment.proposedPrice).toFixed(2)}
                         </p>
+                        {segment.status === "supplier_proposed" && (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => updateSegmentStatusMutation.mutate({ segmentId: segment.id, status: "accepted" })}
+                              disabled={updateSegmentStatusMutation.isPending}
+                              data-testid={`button-accept-${segment.id}`}
+                            >
+                              <Check className="h-4 w-4 mr-1" />
+                              Accept
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateSegmentStatusMutation.mutate({ segmentId: segment.id, status: "rejected" })}
+                              disabled={updateSegmentStatusMutation.isPending}
+                              data-testid={`button-reject-${segment.id}`}
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Reject
+                            </Button>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <p className="text-sm text-muted-foreground">Awaiting quote</p>
