@@ -565,6 +565,8 @@ export const insertSightSchema = createInsertSchema(sights).omit({ id: true, cre
 export const insertItinerarySchema = createInsertSchema(itineraries).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertItineraryEventSchema = createInsertSchema(itineraryEvents).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertRfqSchema = createInsertSchema(rfqs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRfqSegmentSchema = createInsertSchema(rfqSegments).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Insert schemas
 export const insertRefreshTokenSchema = createInsertSchema(refreshTokens).omit({ id: true, createdAt: true });
@@ -607,5 +609,8 @@ export type InsertItinerary = z.infer<typeof insertItinerarySchema>;
 export type ItineraryEvent = typeof itineraryEvents.$inferSelect;
 export type InsertItineraryEvent = z.infer<typeof insertItineraryEventSchema>;
 export type Rfq = typeof rfqs.$inferSelect;
+export type InsertRfq = z.infer<typeof insertRfqSchema>;
 export type RfqSegment = typeof rfqSegments.$inferSelect;
+export type InsertRfqSegment = z.infer<typeof insertRfqSegmentSchema>;
 export type Quote = typeof quotes.$inferSelect;
+export type InsertQuote = z.infer<typeof insertQuoteSchema>;

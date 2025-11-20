@@ -866,6 +866,302 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== RFQ Routes (Agency) =====
+
+  app.post("/api/agency/rfqs", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const agencyId = (req.user as any).agencyId;
+      const { itineraryId, expiresAt } = z.object({
+        itineraryId: z.string(),
+        expiresAt: z.string().optional(),
+      }).parse(req.body);
+
+      // Verify itinerary belongs to agency
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(and(
+          eq(itineraries.id, itineraryId),
+          eq(itineraries.agencyId, agencyId)
+        ));
+
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Get all events from the itinerary
+      const events = await db
+        .select()
+        .from(itineraryEvents)
+        .where(eq(itineraryEvents.itineraryId, itineraryId));
+
+      if (events.length === 0) {
+        return res.status(400).json({ message: "Cannot create RFQ from empty itinerary" });
+      }
+
+      // Create the RFQ
+      const [rfq] = await db
+        .insert(rfqs)
+        .values({
+          tenantId: itinerary.tenantId,
+          itineraryId: itineraryId,
+          agencyId: agencyId,
+          requestedByContactId: req.user!.id,
+          status: "open",
+          expiresAt: expiresAt ? new Date(expiresAt) : null,
+        })
+        .returning();
+
+      // Segment events by supplier type and get suppliers
+      const eventsByType: Record<string, typeof events> = {
+        transport: [],
+        hotel: [],
+        guide: [],
+        sight: [],
+      };
+
+      events.forEach(event => {
+        const type = event.eventType.toLowerCase();
+        if (type.includes('transfer') || type.includes('transport')) {
+          eventsByType.transport.push(event);
+        } else if (type.includes('accommodation') || type.includes('hotel')) {
+          eventsByType.hotel.push(event);
+        } else if (type.includes('tour') || type.includes('guide')) {
+          eventsByType.guide.push(event);
+        } else if (type.includes('sight') || type.includes('attraction')) {
+          eventsByType.sight.push(event);
+        }
+      });
+
+      // Get suppliers for each type in this tenant
+      const transportCompaniesData = await db
+        .select()
+        .from(transportCompanies)
+        .where(eq(transportCompanies.tenantId, itinerary.tenantId));
+
+      const hotelsData = await db
+        .select()
+        .from(hotels)
+        .where(eq(hotels.tenantId, itinerary.tenantId));
+
+      const tourGuidesData = await db
+        .select()
+        .from(tourGuides)
+        .where(eq(tourGuides.tenantId, itinerary.tenantId));
+
+      const sightsData = await db
+        .select()
+        .from(sights)
+        .where(eq(sights.tenantId, itinerary.tenantId));
+
+      // Create RFQ segments for each supplier type with events
+      const segments = [];
+
+      if (eventsByType.transport.length > 0 && transportCompaniesData.length > 0) {
+        for (const supplier of transportCompaniesData) {
+          const [segment] = await db
+            .insert(rfqSegments)
+            .values({
+              rfqId: rfq.id,
+              supplierType: "transport",
+              supplierId: supplier.id,
+              payload: { events: eventsByType.transport },
+              status: "pending",
+            })
+            .returning();
+          segments.push(segment);
+        }
+      }
+
+      if (eventsByType.hotel.length > 0 && hotelsData.length > 0) {
+        for (const supplier of hotelsData) {
+          const [segment] = await db
+            .insert(rfqSegments)
+            .values({
+              rfqId: rfq.id,
+              supplierType: "hotel",
+              supplierId: supplier.id,
+              payload: { events: eventsByType.hotel },
+              status: "pending",
+            })
+            .returning();
+          segments.push(segment);
+        }
+      }
+
+      if (eventsByType.guide.length > 0 && tourGuidesData.length > 0) {
+        for (const supplier of tourGuidesData) {
+          const [segment] = await db
+            .insert(rfqSegments)
+            .values({
+              rfqId: rfq.id,
+              supplierType: "guide",
+              supplierId: supplier.id,
+              payload: { events: eventsByType.guide },
+              status: "pending",
+            })
+            .returning();
+          segments.push(segment);
+        }
+      }
+
+      if (eventsByType.sight.length > 0 && sightsData.length > 0) {
+        for (const supplier of sightsData) {
+          const [segment] = await db
+            .insert(rfqSegments)
+            .values({
+              rfqId: rfq.id,
+              supplierType: "sight",
+              supplierId: supplier.id,
+              payload: { events: eventsByType.sight },
+              status: "pending",
+            })
+            .returning();
+          segments.push(segment);
+        }
+      }
+
+      // Update itinerary status to "requested"
+      await db
+        .update(itineraries)
+        .set({ status: "requested", updatedAt: new Date() })
+        .where(eq(itineraries.id, itineraryId));
+
+      res.json({ ...rfq, segments });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/agency/rfqs", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const agencyId = (req.user as any).agencyId;
+
+      const rfqsData = await db
+        .select({
+          id: rfqs.id,
+          tenantId: rfqs.tenantId,
+          itineraryId: rfqs.itineraryId,
+          agencyId: rfqs.agencyId,
+          requestedByContactId: rfqs.requestedByContactId,
+          status: rfqs.status,
+          expiresAt: rfqs.expiresAt,
+          createdAt: rfqs.createdAt,
+          updatedAt: rfqs.updatedAt,
+          itineraryTitle: itineraries.title,
+          itineraryStartDate: itineraries.startDate,
+          itineraryEndDate: itineraries.endDate,
+          tenantName: tenants.name,
+        })
+        .from(rfqs)
+        .leftJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
+        .leftJoin(tenants, eq(rfqs.tenantId, tenants.id))
+        .where(eq(rfqs.agencyId, agencyId))
+        .orderBy(desc(rfqs.createdAt));
+
+      res.json(rfqsData);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/agency/rfqs/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const agencyId = (req.user as any).agencyId;
+
+      const [rfq] = await db
+        .select()
+        .from(rfqs)
+        .where(and(
+          eq(rfqs.id, id),
+          eq(rfqs.agencyId, agencyId)
+        ));
+
+      if (!rfq) {
+        return res.status(404).json({ message: "RFQ not found" });
+      }
+
+      // Get all segments for this RFQ
+      const segments = await db
+        .select()
+        .from(rfqSegments)
+        .where(eq(rfqSegments.rfqId, id));
+
+      // Get itinerary details
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(eq(itineraries.id, rfq.itineraryId));
+
+      res.json({ ...rfq, segments, itinerary });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/agency/rfqs/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const agencyId = (req.user as any).agencyId;
+
+      const [targetRfq] = await db
+        .select()
+        .from(rfqs)
+        .where(and(
+          eq(rfqs.id, id),
+          eq(rfqs.agencyId, agencyId)
+        ));
+
+      if (!targetRfq) {
+        return res.status(404).json({ message: "RFQ not found" });
+      }
+
+      const updateData = insertRfqSchema.partial().parse(req.body);
+
+      const [updatedRfq] = await db
+        .update(rfqs)
+        .set({ ...updateData, updatedAt: new Date() })
+        .where(and(
+          eq(rfqs.id, id),
+          eq(rfqs.agencyId, agencyId)
+        ))
+        .returning();
+
+      res.json(updatedRfq);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/agency/rfqs/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const agencyId = (req.user as any).agencyId;
+
+      const [targetRfq] = await db
+        .select()
+        .from(rfqs)
+        .where(and(
+          eq(rfqs.id, id),
+          eq(rfqs.agencyId, agencyId)
+        ));
+
+      if (!targetRfq) {
+        return res.status(404).json({ message: "RFQ not found" });
+      }
+
+      await db.delete(rfqs).where(and(
+        eq(rfqs.id, id),
+        eq(rfqs.agencyId, agencyId)
+      ));
+
+      res.json({ message: "RFQ deleted" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.get("/api/user/tenants", requireAuth, async (req: AuthRequest, res, next) => {
     try {
       const userTenantsData = await db
