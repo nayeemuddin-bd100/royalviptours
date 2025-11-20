@@ -511,7 +511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/agency/addresses/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
-      const { id } = req.params;
+      const { id} = req.params;
       const agencyId = (req.user as any).agencyId;
 
       const [targetAddress] = await db
@@ -531,6 +531,336 @@ export async function registerRoutes(app: Express): Promise<Server> {
         eq(agencyAddresses.agencyId, agencyId)
       ));
       res.json({ message: "Address deleted" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Agency itinerary management
+  app.get("/api/agency/itineraries", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const agencyId = (req.user as any).agencyId;
+
+      const agencyItineraries = await db
+        .select()
+        .from(itineraries)
+        .where(eq(itineraries.agencyId, agencyId))
+        .orderBy(desc(itineraries.createdAt));
+
+      res.json(agencyItineraries);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/agency/itineraries/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const agencyId = (req.user as any).agencyId;
+
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(and(
+          eq(itineraries.id, id),
+          eq(itineraries.agencyId, agencyId)
+        ));
+
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Fetch days with events
+      const days = await db
+        .select()
+        .from(itineraryDays)
+        .where(eq(itineraryDays.itineraryId, id))
+        .orderBy(itineraryDays.dayNumber);
+
+      const daysWithEvents = await Promise.all(
+        days.map(async (day) => {
+          const events = await db
+            .select()
+            .from(itineraryEvents)
+            .where(eq(itineraryEvents.dayId, day.id))
+            .orderBy(itineraryEvents.createdAt);
+          return { ...day, events };
+        })
+      );
+
+      res.json({ ...itinerary, days: daysWithEvents });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/agency/itineraries", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const agencyId = (req.user as any).agencyId;
+
+      const itineraryData = z.object({
+        tenantId: z.string(),
+        title: z.string().min(1),
+        paxAdults: z.number().int().min(1),
+        paxChildren: z.number().int().min(0).optional(),
+        startDate: z.string().transform((str) => new Date(str)),
+        endDate: z.string().transform((str) => new Date(str)),
+        notes: z.string().optional(),
+      }).parse(req.body);
+
+      // Calculate number of days
+      const start = new Date(itineraryData.startDate);
+      const end = new Date(itineraryData.endDate);
+      const dayCount = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      // Create itinerary
+      const [newItinerary] = await db
+        .insert(itineraries)
+        .values({
+          ...itineraryData,
+          agencyId: agencyId,
+          paxChildren: itineraryData.paxChildren || 0,
+        })
+        .returning();
+
+      // Create days
+      const dayPromises = [];
+      for (let i = 0; i < dayCount; i++) {
+        const dayDate = new Date(start);
+        dayDate.setDate(start.getDate() + i);
+        dayPromises.push(
+          db.insert(itineraryDays).values({
+            itineraryId: newItinerary.id,
+            dayNumber: i + 1,
+            date: dayDate,
+          }).returning()
+        );
+      }
+      await Promise.all(dayPromises);
+
+      res.json(newItinerary);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/agency/itineraries/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const agencyId = (req.user as any).agencyId;
+
+      const [targetItinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(and(
+          eq(itineraries.id, id),
+          eq(itineraries.agencyId, agencyId)
+        ));
+
+      if (!targetItinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      const updateData = insertItinerarySchema.partial().parse(req.body);
+
+      // If dates are being updated, check if any events exist
+      if (updateData.startDate || updateData.endDate) {
+        const existingEvents = await db
+          .select()
+          .from(itineraryEvents)
+          .where(eq(itineraryEvents.itineraryId, id))
+          .limit(1);
+
+        if (existingEvents.length > 0) {
+          return res.status(400).json({ 
+            message: "Cannot change dates after events have been added. Please delete all events first." 
+          });
+        }
+
+        // No events exist, safe to regenerate days
+        const newStart = updateData.startDate ? new Date(updateData.startDate) : new Date(targetItinerary.startDate);
+        const newEnd = updateData.endDate ? new Date(updateData.endDate) : new Date(targetItinerary.endDate);
+        const dayCount = Math.ceil((newEnd.getTime() - newStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+        // Delete existing days
+        await db.delete(itineraryDays).where(eq(itineraryDays.itineraryId, id));
+
+        // Create new days
+        const dayPromises = [];
+        for (let i = 0; i < dayCount; i++) {
+          const dayDate = new Date(newStart);
+          dayDate.setDate(newStart.getDate() + i);
+          dayPromises.push(
+            db.insert(itineraryDays).values({
+              itineraryId: id,
+              dayNumber: i + 1,
+              date: dayDate,
+            })
+          );
+        }
+        await Promise.all(dayPromises);
+      }
+
+      const [updatedItinerary] = await db
+        .update(itineraries)
+        .set({ ...updateData, updatedAt: new Date() })
+        .where(and(
+          eq(itineraries.id, id),
+          eq(itineraries.agencyId, agencyId)
+        ))
+        .returning();
+
+      res.json(updatedItinerary);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/agency/itineraries/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const agencyId = (req.user as any).agencyId;
+
+      const [targetItinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(and(
+          eq(itineraries.id, id),
+          eq(itineraries.agencyId, agencyId)
+        ));
+
+      if (!targetItinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      await db.delete(itineraries).where(and(
+        eq(itineraries.id, id),
+        eq(itineraries.agencyId, agencyId)
+      ));
+      res.json({ message: "Itinerary deleted" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Itinerary events management
+  app.post("/api/agency/itineraries/:itineraryId/events", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const { itineraryId } = req.params;
+      const agencyId = (req.user as any).agencyId;
+
+      // Verify itinerary belongs to agency
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(and(
+          eq(itineraries.id, itineraryId),
+          eq(itineraries.agencyId, agencyId)
+        ));
+
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      const eventData = z.object({
+        dayId: z.string(),
+        categoryId: z.string().optional(),
+        eventType: z.string().min(1),
+        summary: z.string().min(1),
+        details: z.any(),
+        startTime: z.string().optional(),
+        endTime: z.string().optional(),
+        supplierRef: z.any().optional(),
+        quantity: z.number().int().min(1).optional(),
+        unit: z.string().optional(),
+      }).parse(req.body);
+
+      const [newEvent] = await db
+        .insert(itineraryEvents)
+        .values({
+          tenantId: itinerary.tenantId,
+          itineraryId: itineraryId,
+          dayId: eventData.dayId,
+          categoryId: eventData.categoryId || null,
+          eventType: eventData.eventType,
+          summary: eventData.summary,
+          details: eventData.details,
+          startTime: eventData.startTime || null,
+          endTime: eventData.endTime || null,
+          supplierRef: eventData.supplierRef || null,
+          quantity: eventData.quantity || 1,
+          unit: eventData.unit || null,
+        })
+        .returning();
+
+      res.json(newEvent);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/agency/itineraries/:itineraryId/events/:eventId", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const { itineraryId, eventId } = req.params;
+      const agencyId = (req.user as any).agencyId;
+
+      // Verify itinerary belongs to agency
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(and(
+          eq(itineraries.id, itineraryId),
+          eq(itineraries.agencyId, agencyId)
+        ));
+
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      const updateData = insertItineraryEventSchema.partial().parse(req.body);
+
+      const [updatedEvent] = await db
+        .update(itineraryEvents)
+        .set({ ...updateData, updatedAt: new Date() })
+        .where(and(
+          eq(itineraryEvents.id, eventId),
+          eq(itineraryEvents.itineraryId, itineraryId)
+        ))
+        .returning();
+
+      if (!updatedEvent) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      res.json(updatedEvent);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/agency/itineraries/:itineraryId/events/:eventId", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const { itineraryId, eventId } = req.params;
+      const agencyId = (req.user as any).agencyId;
+
+      // Verify itinerary belongs to agency
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(and(
+          eq(itineraries.id, itineraryId),
+          eq(itineraries.agencyId, agencyId)
+        ));
+
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      await db.delete(itineraryEvents).where(and(
+        eq(itineraryEvents.id, eventId),
+        eq(itineraryEvents.itineraryId, itineraryId)
+      ));
+      res.json({ message: "Event deleted" });
     } catch (error: any) {
       next(error);
     }

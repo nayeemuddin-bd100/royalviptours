@@ -18,6 +18,9 @@ import AgencyRegistrationPage from "@/pages/agency-registration-page";
 import SupplierDashboard from "@/pages/supplier-dashboard";
 import AgencyDashboard from "@/pages/agency-dashboard";
 import AgencyAccountPage from "@/pages/agency-account-page";
+import AgencyItinerariesPage from "@/pages/agency-itineraries-page";
+import AgencyItineraryNewPage from "@/pages/agency-itinerary-new-page";
+import AgencyItineraryEditPage from "@/pages/agency-itinerary-edit-page";
 
 function Router() {
   return (
@@ -30,7 +33,9 @@ function Router() {
       <ProtectedRoute path="/supplier" component={SupplierDashboard} />
       <ProtectedRoute path="/agency" component={AgencyDashboard} />
       <ProtectedRoute path="/agency/account" component={AgencyAccountPage} />
-      <ProtectedRoute path="/itineraries" component={ItinerariesPage} />
+      <ProtectedRoute path="/itineraries/new" component={AgencyItineraryNewPage} />
+      <ProtectedRoute path="/itineraries/:id" component={AgencyItineraryEditPage} />
+      <ProtectedRoute path="/itineraries" component={AgencyItinerariesPage} />
       <ProtectedRoute path="/quotes" component={QuotesPage} />
       <Route component={NotFound} />
     </Switch>
