@@ -1755,6 +1755,241 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== RFQ Routes (Supplier) =====
+
+  app.get("/api/supplier/rfq-segments", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const userId = req.user!.id;
+
+      // Get user's tenant memberships to find supplier companies
+      const userTenantsData = await db
+        .select()
+        .from(userTenants)
+        .where(eq(userTenants.userId, userId));
+
+      // Collect all supplier IDs for this user across all tenants
+      const supplierIds: string[] = [];
+
+      for (const ut of userTenantsData) {
+        if (ut.tenantRole === "transport") {
+          const companies = await db
+            .select()
+            .from(transportCompanies)
+            .where(eq(transportCompanies.tenantId, ut.tenantId));
+          supplierIds.push(...companies.map(c => c.id));
+        } else if (ut.tenantRole === "hotel") {
+          const hotelsData = await db
+            .select()
+            .from(hotels)
+            .where(eq(hotels.tenantId, ut.tenantId));
+          supplierIds.push(...hotelsData.map(h => h.id));
+        } else if (ut.tenantRole === "guide") {
+          const guidesData = await db
+            .select()
+            .from(tourGuides)
+            .where(eq(tourGuides.tenantId, ut.tenantId));
+          supplierIds.push(...guidesData.map(g => g.id));
+        } else if (ut.tenantRole === "sight") {
+          const sightsData = await db
+            .select()
+            .from(sights)
+            .where(eq(sights.tenantId, ut.tenantId));
+          supplierIds.push(...sightsData.map(s => s.id));
+        }
+      }
+
+      if (supplierIds.length === 0) {
+        return res.json([]);
+      }
+
+      // Get RFQ segments assigned to any of this user's supplier companies
+      const segments = await db
+        .select({
+          id: rfqSegments.id,
+          rfqId: rfqSegments.rfqId,
+          supplierType: rfqSegments.supplierType,
+          supplierId: rfqSegments.supplierId,
+          payload: rfqSegments.payload,
+          status: rfqSegments.status,
+          supplierNotes: rfqSegments.supplierNotes,
+          proposedPrice: rfqSegments.proposedPrice,
+          createdAt: rfqSegments.createdAt,
+          updatedAt: rfqSegments.updatedAt,
+          rfqStatus: rfqs.status,
+          rfqExpiresAt: rfqs.expiresAt,
+          itineraryTitle: itineraries.title,
+          itineraryStartDate: itineraries.startDate,
+          itineraryEndDate: itineraries.endDate,
+          agencyName: agencies.legalName,
+        })
+        .from(rfqSegments)
+        .leftJoin(rfqs, eq(rfqSegments.rfqId, rfqs.id))
+        .leftJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
+        .leftJoin(agencies, eq(rfqs.agencyId, agencies.id))
+        .where(eq(rfqSegments.supplierId, supplierIds[0])) // TODO: Support multiple supplier IDs with 'in' operator
+        .orderBy(desc(rfqSegments.createdAt));
+
+      res.json(segments);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/supplier/rfq-segments/:id", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      // Get user's tenant memberships to verify access
+      const userTenantsData = await db
+        .select()
+        .from(userTenants)
+        .where(eq(userTenants.userId, userId));
+
+      const supplierIds: string[] = [];
+
+      for (const ut of userTenantsData) {
+        if (ut.tenantRole === "transport") {
+          const companies = await db
+            .select()
+            .from(transportCompanies)
+            .where(eq(transportCompanies.tenantId, ut.tenantId));
+          supplierIds.push(...companies.map(c => c.id));
+        } else if (ut.tenantRole === "hotel") {
+          const hotelsData = await db
+            .select()
+            .from(hotels)
+            .where(eq(hotels.tenantId, ut.tenantId));
+          supplierIds.push(...hotelsData.map(h => h.id));
+        } else if (ut.tenantRole === "guide") {
+          const guidesData = await db
+            .select()
+            .from(tourGuides)
+            .where(eq(tourGuides.tenantId, ut.tenantId));
+          supplierIds.push(...guidesData.map(g => g.id));
+        } else if (ut.tenantRole === "sight") {
+          const sightsData = await db
+            .select()
+            .from(sights)
+            .where(eq(sights.tenantId, ut.tenantId));
+          supplierIds.push(...sightsData.map(s => s.id));
+        }
+      }
+
+      const [segment] = await db
+        .select()
+        .from(rfqSegments)
+        .where(eq(rfqSegments.id, id));
+
+      if (!segment) {
+        return res.status(404).json({ message: "RFQ segment not found" });
+      }
+
+      // Verify this segment belongs to one of the user's suppliers
+      if (!supplierIds.includes(segment.supplierId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      // Get associated RFQ and itinerary details
+      const [rfq] = await db
+        .select()
+        .from(rfqs)
+        .where(eq(rfqs.id, segment.rfqId));
+
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(eq(itineraries.id, rfq.itineraryId));
+
+      const [agency] = await db
+        .select()
+        .from(agencies)
+        .where(eq(agencies.id, rfq.agencyId));
+
+      res.json({ ...segment, rfq, itinerary, agency });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/supplier/rfq-segments/:id/quote", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      const quoteData = z.object({
+        proposedPrice: z.number(),
+        supplierNotes: z.string().optional(),
+      }).parse(req.body);
+
+      // Get user's tenant memberships to verify access
+      const userTenantsData = await db
+        .select()
+        .from(userTenants)
+        .where(eq(userTenants.userId, userId));
+
+      const supplierIds: string[] = [];
+
+      for (const ut of userTenantsData) {
+        if (ut.tenantRole === "transport") {
+          const companies = await db
+            .select()
+            .from(transportCompanies)
+            .where(eq(transportCompanies.tenantId, ut.tenantId));
+          supplierIds.push(...companies.map(c => c.id));
+        } else if (ut.tenantRole === "hotel") {
+          const hotelsData = await db
+            .select()
+            .from(hotels)
+            .where(eq(hotels.tenantId, ut.tenantId));
+          supplierIds.push(...hotelsData.map(h => h.id));
+        } else if (ut.tenantRole === "guide") {
+          const guidesData = await db
+            .select()
+            .from(tourGuides)
+            .where(eq(tourGuides.tenantId, ut.tenantId));
+          supplierIds.push(...guidesData.map(g => g.id));
+        } else if (ut.tenantRole === "sight") {
+          const sightsData = await db
+            .select()
+            .from(sights)
+            .where(eq(sights.tenantId, ut.tenantId));
+          supplierIds.push(...sightsData.map(s => s.id));
+        }
+      }
+
+      const [segment] = await db
+        .select()
+        .from(rfqSegments)
+        .where(eq(rfqSegments.id, id));
+
+      if (!segment) {
+        return res.status(404).json({ message: "RFQ segment not found" });
+      }
+
+      // Verify this segment belongs to one of the user's suppliers
+      if (!supplierIds.includes(segment.supplierId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      // Update the segment with the quote
+      const [updatedSegment] = await db
+        .update(rfqSegments)
+        .set({
+          proposedPrice: quoteData.proposedPrice,
+          supplierNotes: quoteData.supplierNotes || null,
+          status: "supplier_proposed",
+          updatedAt: new Date(),
+        })
+        .where(eq(rfqSegments.id, id))
+        .returning();
+
+      res.json(updatedSegment);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // ===== Transport Routes =====
   
   app.get("/api/transport/companies", requireAuth, requireTenantRole("transport"), async (req: AuthRequest, res, next) => {
