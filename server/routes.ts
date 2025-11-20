@@ -244,6 +244,357 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Agency profile management
+  app.get("/api/agency/profile", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const contactId = req.user!.id;
+      
+      const [contact] = await db
+        .select()
+        .from(agencyContacts)
+        .where(eq(agencyContacts.id, contactId));
+
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      const [agency] = await db
+        .select()
+        .from(agencies)
+        .where(eq(agencies.id, contact.agencyId));
+
+      if (!agency) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
+
+      res.json(agency);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/agency/profile", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const contactId = req.user!.id;
+      
+      const [contact] = await db
+        .select()
+        .from(agencyContacts)
+        .where(eq(agencyContacts.id, contactId));
+
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      const updateData = insertAgencySchema.partial().parse(req.body);
+      
+      const [updatedAgency] = await db
+        .update(agencies)
+        .set({ ...updateData, updatedAt: new Date() })
+        .where(eq(agencies.id, contact.agencyId))
+        .returning();
+
+      res.json(updatedAgency);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Agency contacts management
+  app.get("/api/agency/contacts", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const contactId = req.user!.id;
+      
+      const [currentContact] = await db
+        .select()
+        .from(agencyContacts)
+        .where(eq(agencyContacts.id, contactId));
+
+      if (!currentContact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      const contacts = await db
+        .select({
+          id: agencyContacts.id,
+          name: agencyContacts.name,
+          title: agencyContacts.title,
+          email: agencyContacts.email,
+          altEmail: agencyContacts.altEmail,
+          mobile: agencyContacts.mobile,
+          officePhone: agencyContacts.officePhone,
+          preferredChannel: agencyContacts.preferredChannel,
+          status: agencyContacts.status,
+          createdAt: agencyContacts.createdAt,
+        })
+        .from(agencyContacts)
+        .where(eq(agencyContacts.agencyId, currentContact.agencyId))
+        .orderBy(desc(agencyContacts.createdAt));
+
+      res.json(contacts);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/agency/contacts", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const contactId = req.user!.id;
+      
+      const [currentContact] = await db
+        .select()
+        .from(agencyContacts)
+        .where(eq(agencyContacts.id, contactId));
+
+      if (!currentContact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      const newContactData = z.object({
+        name: z.string().min(1),
+        title: z.string().optional(),
+        email: z.string().email(),
+        altEmail: z.string().email().optional(),
+        mobile: z.string().optional(),
+        officePhone: z.string().optional(),
+        preferredChannel: z.string().optional(),
+        password: z.string().min(6),
+      }).parse(req.body);
+
+      const [newContact] = await db
+        .insert(agencyContacts)
+        .values({
+          ...newContactData,
+          agencyId: currentContact.agencyId,
+          password: hashPassword(newContactData.password),
+          status: "active",
+        })
+        .returning();
+
+      const { password, ...contactWithoutPassword } = newContact;
+      res.json(contactWithoutPassword);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/agency/contacts/:id", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const contactId = req.user!.id;
+      
+      const [currentContact] = await db
+        .select()
+        .from(agencyContacts)
+        .where(eq(agencyContacts.id, contactId));
+
+      if (!currentContact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      const [targetContact] = await db
+        .select()
+        .from(agencyContacts)
+        .where(eq(agencyContacts.id, id));
+
+      if (!targetContact || targetContact.agencyId !== currentContact.agencyId) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      const updateData = z.object({
+        name: z.string().min(1).optional(),
+        title: z.string().optional(),
+        email: z.string().email().optional(),
+        altEmail: z.string().email().optional(),
+        mobile: z.string().optional(),
+        officePhone: z.string().optional(),
+        preferredChannel: z.string().optional(),
+        status: z.enum(["pending", "active", "suspended"]).optional(),
+      }).parse(req.body);
+
+      const [updatedContact] = await db
+        .update(agencyContacts)
+        .set({ ...updateData, updatedAt: new Date() })
+        .where(eq(agencyContacts.id, id))
+        .returning();
+
+      const { password, ...contactWithoutPassword } = updatedContact;
+      res.json(contactWithoutPassword);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/agency/contacts/:id", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const contactId = req.user!.id;
+      
+      if (id === contactId) {
+        return res.status(400).json({ message: "Cannot delete your own contact" });
+      }
+
+      const [currentContact] = await db
+        .select()
+        .from(agencyContacts)
+        .where(eq(agencyContacts.id, contactId));
+
+      if (!currentContact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      const [targetContact] = await db
+        .select()
+        .from(agencyContacts)
+        .where(eq(agencyContacts.id, id));
+
+      if (!targetContact || targetContact.agencyId !== currentContact.agencyId) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      await db.delete(agencyContacts).where(eq(agencyContacts.id, id));
+      res.json({ message: "Contact deleted" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Agency addresses management
+  app.get("/api/agency/addresses", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const contactId = req.user!.id;
+      
+      const [contact] = await db
+        .select()
+        .from(agencyContacts)
+        .where(eq(agencyContacts.id, contactId));
+
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      const addresses = await db
+        .select()
+        .from(agencyAddresses)
+        .where(eq(agencyAddresses.agencyId, contact.agencyId))
+        .orderBy(desc(agencyAddresses.createdAt));
+
+      res.json(addresses);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/agency/addresses", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const contactId = req.user!.id;
+      
+      const [contact] = await db
+        .select()
+        .from(agencyContacts)
+        .where(eq(agencyContacts.id, contactId));
+
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      const addressData = z.object({
+        street: z.string().min(1),
+        city: z.string().min(1),
+        region: z.string().optional(),
+        postalCode: z.string().optional(),
+        country: z.string().min(1),
+        googleMapsUrl: z.string().url().optional(),
+      }).parse(req.body);
+
+      const [newAddress] = await db
+        .insert(agencyAddresses)
+        .values({
+          ...addressData,
+          agencyId: contact.agencyId,
+        })
+        .returning();
+
+      res.json(newAddress);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/agency/addresses/:id", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const contactId = req.user!.id;
+      
+      const [contact] = await db
+        .select()
+        .from(agencyContacts)
+        .where(eq(agencyContacts.id, contactId));
+
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      const [targetAddress] = await db
+        .select()
+        .from(agencyAddresses)
+        .where(eq(agencyAddresses.id, id));
+
+      if (!targetAddress || targetAddress.agencyId !== contact.agencyId) {
+        return res.status(404).json({ message: "Address not found" });
+      }
+
+      const updateData = z.object({
+        street: z.string().min(1).optional(),
+        city: z.string().min(1).optional(),
+        region: z.string().optional(),
+        postalCode: z.string().optional(),
+        country: z.string().min(1).optional(),
+        googleMapsUrl: z.string().url().optional(),
+      }).parse(req.body);
+
+      const [updatedAddress] = await db
+        .update(agencyAddresses)
+        .set(updateData)
+        .where(eq(agencyAddresses.id, id))
+        .returning();
+
+      res.json(updatedAddress);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/agency/addresses/:id", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const contactId = req.user!.id;
+      
+      const [contact] = await db
+        .select()
+        .from(agencyContacts)
+        .where(eq(agencyContacts.id, contactId));
+
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      const [targetAddress] = await db
+        .select()
+        .from(agencyAddresses)
+        .where(eq(agencyAddresses.id, id));
+
+      if (!targetAddress || targetAddress.agencyId !== contact.agencyId) {
+        return res.status(404).json({ message: "Address not found" });
+      }
+
+      await db.delete(agencyAddresses).where(eq(agencyAddresses.id, id));
+      res.json({ message: "Address deleted" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.get("/api/user/tenants", requireAuth, async (req: AuthRequest, res, next) => {
     try {
       const userTenantsData = await db
