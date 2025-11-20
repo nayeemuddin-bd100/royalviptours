@@ -45,7 +45,7 @@ const adminItems = [
 const supplierItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "My Catalog", url: "/supplier", icon: Building2 },
-  { title: "Incoming RFQs", url: "/supplier/rfqs", icon: FileText },
+  { title: "RFQ Inbox", url: "/supplier/rfq-inbox", icon: FileText },
 ];
 
 // Country Manager navigation items
@@ -63,7 +63,7 @@ const transportItems = [
   { title: "My Company", url: "/transport/profile", icon: Building2 },
   { title: "Fleet", url: "/transport/fleet", icon: Car },
   { title: "Products", url: "/transport/products", icon: Plane },
-  { title: "Incoming RFQs", url: "/transport/rfqs", icon: FileText },
+  { title: "RFQ Inbox", url: "/supplier/rfq-inbox", icon: FileText },
 ];
 
 // Hotel navigation items
@@ -72,7 +72,7 @@ const hotelItems = [
   { title: "My Hotel", url: "/hotel/profile", icon: Hotel },
   { title: "Room Types", url: "/hotel/rooms", icon: Building2 },
   { title: "Rates", url: "/hotel/rates", icon: FileText },
-  { title: "Incoming RFQs", url: "/hotel/rfqs", icon: ClipboardList },
+  { title: "RFQ Inbox", url: "/supplier/rfq-inbox", icon: ClipboardList },
 ];
 
 // Tour Guide navigation items
@@ -80,7 +80,7 @@ const guideItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "My Profile", url: "/guide/profile", icon: UserCircle },
   { title: "Rates & Availability", url: "/guide/rates", icon: Calendar },
-  { title: "Incoming RFQs", url: "/guide/rfqs", icon: FileText },
+  { title: "RFQ Inbox", url: "/supplier/rfq-inbox", icon: FileText },
 ];
 
 // Agency navigation items

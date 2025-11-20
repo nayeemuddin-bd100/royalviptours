@@ -1846,6 +1846,153 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/supplier/rfq-segments", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const userId = req.user!.id;
+
+      // Get user's tenant memberships
+      const userTenantsData = await db
+        .select()
+        .from(userTenants)
+        .where(eq(userTenants.userId, userId));
+
+      // Collect all RFQ segments for this supplier across all their tenants/roles
+      const allSegments: any[] = [];
+
+      for (const ut of userTenantsData) {
+        if (ut.tenantRole === "transport") {
+          const companies = await db
+            .select()
+            .from(transportCompanies)
+            .where(and(
+              eq(transportCompanies.tenantId, ut.tenantId),
+              or(
+                eq(transportCompanies.ownerId, userId),
+                sql`${transportCompanies.ownerId} IS NULL`
+              )
+            ));
+          
+          const companyIds = companies.map(c => c.id);
+          if (companyIds.length > 0) {
+            const segments = await db
+              .select({
+                segment: rfqSegments,
+                rfq: rfqs,
+                itinerary: itineraries,
+                agency: agencies,
+              })
+              .from(rfqSegments)
+              .innerJoin(rfqs, eq(rfqSegments.rfqId, rfqs.id))
+              .innerJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
+              .innerJoin(agencies, eq(rfqs.agencyId, agencies.id))
+              .where(and(
+                sql`${rfqSegments.supplierId} = ANY(${companyIds})`,
+                eq(rfqSegments.supplierType, "transport")
+              ));
+            allSegments.push(...segments);
+          }
+        } else if (ut.tenantRole === "hotel") {
+          const hotels = await db
+            .select()
+            .from(hotels)
+            .where(and(
+              eq(hotels.tenantId, ut.tenantId),
+              or(
+                eq(hotels.ownerId, userId),
+                sql`${hotels.ownerId} IS NULL`
+              )
+            ));
+          
+          const hotelIds = hotels.map(h => h.id);
+          if (hotelIds.length > 0) {
+            const segments = await db
+              .select({
+                segment: rfqSegments,
+                rfq: rfqs,
+                itinerary: itineraries,
+                agency: agencies,
+              })
+              .from(rfqSegments)
+              .innerJoin(rfqs, eq(rfqSegments.rfqId, rfqs.id))
+              .innerJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
+              .innerJoin(agencies, eq(rfqs.agencyId, agencies.id))
+              .where(and(
+                sql`${rfqSegments.supplierId} = ANY(${hotelIds})`,
+                eq(rfqSegments.supplierType, "hotel")
+              ));
+            allSegments.push(...segments);
+          }
+        } else if (ut.tenantRole === "guide") {
+          const guides = await db
+            .select()
+            .from(tourGuides)
+            .where(and(
+              eq(tourGuides.tenantId, ut.tenantId),
+              or(
+                eq(tourGuides.ownerId, userId),
+                sql`${tourGuides.ownerId} IS NULL`
+              )
+            ));
+          
+          const guideIds = guides.map(g => g.id);
+          if (guideIds.length > 0) {
+            const segments = await db
+              .select({
+                segment: rfqSegments,
+                rfq: rfqs,
+                itinerary: itineraries,
+                agency: agencies,
+              })
+              .from(rfqSegments)
+              .innerJoin(rfqs, eq(rfqSegments.rfqId, rfqs.id))
+              .innerJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
+              .innerJoin(agencies, eq(rfqs.agencyId, agencies.id))
+              .where(and(
+                sql`${rfqSegments.supplierId} = ANY(${guideIds})`,
+                eq(rfqSegments.supplierType, "guide")
+              ));
+            allSegments.push(...segments);
+          }
+        } else if (ut.tenantRole === "sight") {
+          const sights = await db
+            .select()
+            .from(sights)
+            .where(and(
+              eq(sights.tenantId, ut.tenantId),
+              or(
+                eq(sights.ownerId, userId),
+                sql`${sights.ownerId} IS NULL`
+              )
+            ));
+          
+          const sightIds = sights.map(s => s.id);
+          if (sightIds.length > 0) {
+            const segments = await db
+              .select({
+                segment: rfqSegments,
+                rfq: rfqs,
+                itinerary: itineraries,
+                agency: agencies,
+              })
+              .from(rfqSegments)
+              .innerJoin(rfqs, eq(rfqSegments.rfqId, rfqs.id))
+              .innerJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
+              .innerJoin(agencies, eq(rfqs.agencyId, agencies.id))
+              .where(and(
+                sql`${rfqSegments.supplierId} = ANY(${sightIds})`,
+                eq(rfqSegments.supplierType, "sight")
+              ));
+            allSegments.push(...segments);
+          }
+        }
+      }
+
+      res.json(allSegments);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.get("/api/supplier/rfq-segments/:id", requireAuth, async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;

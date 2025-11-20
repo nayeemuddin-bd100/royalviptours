@@ -23,6 +23,7 @@ import AgencyItineraryNewPage from "@/pages/agency-itinerary-new-page";
 import AgencyItineraryEditPage from "@/pages/agency-itinerary-edit-page";
 import AgencyRfqsPage from "@/pages/agency-rfqs-page";
 import AgencyRfqDetailPage from "@/pages/agency-rfq-detail-page";
+import SupplierRfqInboxPage from "@/pages/supplier-rfq-inbox-page";
 
 function Router() {
   return (
@@ -33,6 +34,7 @@ function Router() {
       <ProtectedRoute path="/admin/tenants" component={TenantsPage} />
       <ProtectedRoute path="/admin/users" component={UsersPage} />
       <ProtectedRoute path="/supplier" component={SupplierDashboard} />
+      <ProtectedRoute path="/supplier/rfq-inbox" component={SupplierRfqInboxPage} />
       <ProtectedRoute path="/agency" component={AgencyDashboard} />
       <ProtectedRoute path="/agency/account" component={AgencyAccountPage} />
       <ProtectedRoute path="/itineraries/new" component={AgencyItineraryNewPage} />
