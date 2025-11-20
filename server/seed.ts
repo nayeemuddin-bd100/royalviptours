@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { users, tenants, userTenants } from "@shared/schema";
+import { users, tenants, userTenants, transportCompanies } from "@shared/schema";
 import { hashPassword } from "./lib/auth";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 async function seed() {
   console.log("Starting seed...");
@@ -106,7 +106,31 @@ async function seed() {
     });
     console.log("Transport role assigned successfully");
   } else {
+    transportUser = existingTransport;
     console.log("Transport Supplier user already exists");
+  }
+
+  // Create Transport Company for the transport user
+  const [existingCompany] = await db.select().from(transportCompanies).where(
+    and(
+      eq(transportCompanies.tenantId, tenant.id),
+      eq(transportCompanies.ownerId, transportUser.id)
+    )
+  );
+  
+  if (!existingCompany) {
+    console.log("Creating Transport Company...");
+    const [company] = await db.insert(transportCompanies).values({
+      tenantId: tenant.id,
+      ownerId: transportUser.id,
+      name: "Royal Jordan Transport",
+      description: "Premium transport services across Jordan",
+      phone: "+962 6 123 4567",
+      email: "transport@jordan.royalviptours.com"
+    }).returning();
+    console.log("Transport Company created:", company.name);
+  } else {
+    console.log("Transport Company already exists");
   }
 
   console.log("\n=== Seed completed successfully! ===\n");

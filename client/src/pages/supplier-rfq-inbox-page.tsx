@@ -55,9 +55,13 @@ export default function SupplierRfqInboxPage() {
 
   const submitQuoteMutation = useMutation({
     mutationFn: async (data: QuoteFormData & { segmentId: string }) => {
+      const token = localStorage.getItem("auth_token");
       const response = await fetch(`/api/supplier/rfq-segments/${data.segmentId}/quote`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : "",
+        },
         body: JSON.stringify({
           proposedPrice: data.proposedPrice,
           supplierNotes: data.supplierNotes,

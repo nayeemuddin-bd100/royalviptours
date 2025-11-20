@@ -13,7 +13,7 @@ import {
   insertSightSchema, insertItinerarySchema, insertItineraryEventSchema,
   insertRfqSchema, insertAgencySchema
 } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import { hashPassword, comparePassword, generateAccessToken, generateRefreshToken, verifyRefreshToken, revokeRefreshToken, revokeAllUserTokens, verifyToken, requireAuth, requireRole, requireTenantRole, requireAgencyContact, type AuthRequest } from "./lib/auth";
 import { z } from "zod";
 
@@ -1772,84 +1772,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user!.id;
 
-      // Get user's tenant memberships to find supplier companies
-      const userTenantsData = await db
-        .select()
-        .from(userTenants)
-        .where(eq(userTenants.userId, userId));
-
-      // Collect all supplier IDs for this user across all tenants
-      const supplierIds: string[] = [];
-
-      for (const ut of userTenantsData) {
-        if (ut.tenantRole === "transport") {
-          const companies = await db
-            .select()
-            .from(transportCompanies)
-            .where(eq(transportCompanies.tenantId, ut.tenantId));
-          supplierIds.push(...companies.map(c => c.id));
-        } else if (ut.tenantRole === "hotel") {
-          const hotelsData = await db
-            .select()
-            .from(hotels)
-            .where(eq(hotels.tenantId, ut.tenantId));
-          supplierIds.push(...hotelsData.map(h => h.id));
-        } else if (ut.tenantRole === "guide") {
-          const guidesData = await db
-            .select()
-            .from(tourGuides)
-            .where(eq(tourGuides.tenantId, ut.tenantId));
-          supplierIds.push(...guidesData.map(g => g.id));
-        } else if (ut.tenantRole === "sight") {
-          const sightsData = await db
-            .select()
-            .from(sights)
-            .where(eq(sights.tenantId, ut.tenantId));
-          supplierIds.push(...sightsData.map(s => s.id));
-        }
-      }
-
-      if (supplierIds.length === 0) {
-        return res.json([]);
-      }
-
-      // Get RFQ segments assigned to any of this user's supplier companies
-      const segments = await db
-        .select({
-          id: rfqSegments.id,
-          rfqId: rfqSegments.rfqId,
-          supplierType: rfqSegments.supplierType,
-          supplierId: rfqSegments.supplierId,
-          payload: rfqSegments.payload,
-          status: rfqSegments.status,
-          supplierNotes: rfqSegments.supplierNotes,
-          proposedPrice: rfqSegments.proposedPrice,
-          createdAt: rfqSegments.createdAt,
-          updatedAt: rfqSegments.updatedAt,
-          rfqStatus: rfqs.status,
-          rfqExpiresAt: rfqs.expiresAt,
-          itineraryTitle: itineraries.title,
-          itineraryStartDate: itineraries.startDate,
-          itineraryEndDate: itineraries.endDate,
-          agencyName: agencies.legalName,
-        })
-        .from(rfqSegments)
-        .leftJoin(rfqs, eq(rfqSegments.rfqId, rfqs.id))
-        .leftJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
-        .leftJoin(agencies, eq(rfqs.agencyId, agencies.id))
-        .where(eq(rfqSegments.supplierId, supplierIds[0])) // TODO: Support multiple supplier IDs with 'in' operator
-        .orderBy(desc(rfqSegments.createdAt));
-
-      res.json(segments);
-    } catch (error: any) {
-      next(error);
-    }
-  });
-
-  app.get("/api/supplier/rfq-segments", requireAuth, async (req: AuthRequest, res, next) => {
-    try {
-      const userId = req.user!.id;
-
       // Get user's tenant memberships
       const userTenantsData = await db
         .select()
@@ -1886,7 +1808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .innerJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
               .innerJoin(agencies, eq(rfqs.agencyId, agencies.id))
               .where(and(
-                sql`${rfqSegments.supplierId} = ANY(${companyIds})`,
+                inArray(rfqSegments.supplierId, companyIds),
                 eq(rfqSegments.supplierType, "transport")
               ));
             allSegments.push(...segments);
@@ -1917,7 +1839,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .innerJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
               .innerJoin(agencies, eq(rfqs.agencyId, agencies.id))
               .where(and(
-                sql`${rfqSegments.supplierId} = ANY(${hotelIds})`,
+                inArray(rfqSegments.supplierId, hotelIds),
                 eq(rfqSegments.supplierType, "hotel")
               ));
             allSegments.push(...segments);
@@ -1948,7 +1870,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .innerJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
               .innerJoin(agencies, eq(rfqs.agencyId, agencies.id))
               .where(and(
-                sql`${rfqSegments.supplierId} = ANY(${guideIds})`,
+                inArray(rfqSegments.supplierId, guideIds),
                 eq(rfqSegments.supplierType, "guide")
               ));
             allSegments.push(...segments);
@@ -1979,7 +1901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .innerJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
               .innerJoin(agencies, eq(rfqs.agencyId, agencies.id))
               .where(and(
-                sql`${rfqSegments.supplierId} = ANY(${sightIds})`,
+                inArray(rfqSegments.supplierId, sightIds),
                 eq(rfqSegments.supplierType, "sight")
               ));
             allSegments.push(...segments);
