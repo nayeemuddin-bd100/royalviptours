@@ -34,7 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 
 interface UserTenant {
   id: string;
@@ -327,8 +327,15 @@ export default function ItinerariesPage() {
                       {format(new Date(itinerary.createdAt), "MMM d, yyyy")}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" data-testid={`button-view-${itinerary.id}`}>
-                        View
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        asChild
+                        data-testid={`button-view-${itinerary.id}`}
+                      >
+                        <Link href={`/itineraries/${itinerary.id}`}>
+                          View
+                        </Link>
                       </Button>
                     </TableCell>
                   </TableRow>
