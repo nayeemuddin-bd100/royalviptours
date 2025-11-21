@@ -1569,10 +1569,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = user.id;
       const agencyId = user.agencyId;
 
-      // Build where condition based on user type
+      // Build where condition based on user type - filter by itinerary ownership
       const whereCondition = agencyId 
-        ? eq(rfqs.agencyId, agencyId)
-        : eq(rfqs.userId, userId);
+        ? eq(itineraries.agencyId, agencyId)
+        : eq(itineraries.createdByUserId, userId);
 
       const rfqsData = await db
         .select({
@@ -2566,7 +2566,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             allSegments.push(...segments);
           }
         } else if (ut.tenantRole === "hotel") {
-          const hotels = await db
+          const hotelRecords = await db
             .select()
             .from(hotels)
             .where(and(
@@ -2577,7 +2577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               )
             ));
           
-          const hotelIds = hotels.map(h => h.id);
+          const hotelIds = hotelRecords.map(h => h.id);
           if (hotelIds.length > 0) {
             const segments = await db
               .select({
@@ -2628,7 +2628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             allSegments.push(...segments);
           }
         } else if (ut.tenantRole === "sight") {
-          const sights = await db
+          const sightRecords = await db
             .select()
             .from(sights)
             .where(and(
@@ -2639,7 +2639,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               )
             ));
           
-          const sightIds = sights.map(s => s.id);
+          const sightIds = sightRecords.map(s => s.id);
           if (sightIds.length > 0) {
             const segments = await db
               .select({
@@ -3461,16 +3461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
-  // ===== RFQ Routes =====
-  
-  app.get("/api/rfqs", requireAuth, async (req, res, next) => {
-    try {
-      const allRfqs = await db.select().from(rfqs).orderBy(desc(rfqs.createdAt));
-      res.json(allRfqs);
-    } catch (error: any) {
-      next(error);
-    }
-  });
+  // ===== RFQ Segment Routes =====
 
   app.get("/api/rfq-segments/:id", requireAuth, async (req, res, next) => {
     try {
