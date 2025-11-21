@@ -1196,7 +1196,195 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ===== RFQ Routes (Agency) =====
+  // ===== RFQ Routes (Generic for both Agency and User) =====
+
+  // Generic RFQ creation endpoint - supports both agency contacts and regular users
+  app.post("/api/rfqs", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const user = req.user as any;
+      const userId = user.id;
+      const agencyId = user.agencyId;
+      
+      const { itineraryId, expiresAt } = z.object({
+        itineraryId: z.string(),
+        expiresAt: z.string().optional(),
+      }).parse(req.body);
+
+      // Critical security check: Verify itinerary belongs to THIS user/agency
+      const whereCondition = agencyId
+        ? and(eq(itineraries.id, itineraryId), eq(itineraries.agencyId, agencyId))
+        : and(eq(itineraries.id, itineraryId), eq(itineraries.userId, userId));
+
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(whereCondition);
+
+      if (!itinerary) {
+        return res.status(403).json({ message: "Access denied: Itinerary not found or does not belong to you" });
+      }
+
+      // Check for existing RFQ for this itinerary
+      const existingRfq = await db
+        .select()
+        .from(rfqs)
+        .where(eq(rfqs.itineraryId, itineraryId))
+        .limit(1);
+
+      if (existingRfq.length > 0) {
+        return res.status(400).json({ message: "RFQ already exists for this itinerary" });
+      }
+
+      // Get all events from the itinerary
+      const events = await db
+        .select()
+        .from(itineraryEvents)
+        .where(eq(itineraryEvents.itineraryId, itineraryId));
+
+      if (events.length === 0) {
+        return res.status(400).json({ message: "Cannot create RFQ from empty itinerary" });
+      }
+
+      // Create the RFQ with appropriate ownership
+      const [rfq] = await db
+        .insert(rfqs)
+        .values({
+          tenantId: itinerary.tenantId,
+          itineraryId: itineraryId,
+          agencyId: agencyId || null,
+          userId: agencyId ? null : userId,
+          requestedByContactId: agencyId ? userId : null,
+          status: "open",
+          expiresAt: expiresAt ? new Date(expiresAt) : null,
+        })
+        .returning();
+
+      // Segment events by supplier type and get suppliers
+      const eventsByType: Record<string, typeof events> = {
+        transport: [],
+        hotel: [],
+        guide: [],
+        sight: [],
+      };
+
+      events.forEach(event => {
+        const type = event.eventType.toLowerCase();
+        if (type.includes('transfer') || type.includes('transport')) {
+          eventsByType.transport.push(event);
+        } else if (type.includes('accommodation') || type.includes('hotel')) {
+          eventsByType.hotel.push(event);
+        } else if (type.includes('tour') || type.includes('guide')) {
+          eventsByType.guide.push(event);
+        } else if (type.includes('sight') || type.includes('attraction')) {
+          eventsByType.sight.push(event);
+        }
+      });
+
+      // Get suppliers for each type in this tenant
+      const transportCompaniesData = await db
+        .select()
+        .from(transportCompanies)
+        .where(eq(transportCompanies.tenantId, itinerary.tenantId));
+
+      const hotelsData = await db
+        .select()
+        .from(hotels)
+        .where(eq(hotels.tenantId, itinerary.tenantId));
+
+      const guidesData = await db
+        .select()
+        .from(tourGuides)
+        .where(eq(tourGuides.tenantId, itinerary.tenantId));
+
+      const sightsData = await db
+        .select()
+        .from(sights)
+        .where(eq(sights.tenantId, itinerary.tenantId));
+
+      // Create RFQ segments for each supplier type
+      const segments: any[] = [];
+
+      // Transport segments
+      if (eventsByType.transport.length > 0) {
+        for (const supplier of transportCompaniesData) {
+          const [segment] = await db
+            .insert(rfqSegments)
+            .values({
+              rfqId: rfq.id,
+              supplierType: "transport",
+              supplierId: supplier.id,
+              payload: { events: eventsByType.transport },
+              status: "pending",
+            })
+            .returning();
+          segments.push(segment);
+        }
+      }
+
+      // Hotel segments
+      if (eventsByType.hotel.length > 0) {
+        for (const supplier of hotelsData) {
+          const [segment] = await db
+            .insert(rfqSegments)
+            .values({
+              rfqId: rfq.id,
+              supplierType: "hotel",
+              supplierId: supplier.id,
+              payload: { events: eventsByType.hotel },
+              status: "pending",
+            })
+            .returning();
+          segments.push(segment);
+        }
+      }
+
+      // Guide segments
+      if (eventsByType.guide.length > 0) {
+        for (const supplier of guidesData) {
+          const [segment] = await db
+            .insert(rfqSegments)
+            .values({
+              rfqId: rfq.id,
+              supplierType: "guide",
+              supplierId: supplier.id,
+              payload: { events: eventsByType.guide },
+              status: "pending",
+            })
+            .returning();
+          segments.push(segment);
+        }
+      }
+
+      // Sight segments
+      if (eventsByType.sight.length > 0) {
+        for (const supplier of sightsData) {
+          const [segment] = await db
+            .insert(rfqSegments)
+            .values({
+              rfqId: rfq.id,
+              supplierType: "sight",
+              supplierId: supplier.id,
+              payload: { events: eventsByType.sight },
+              status: "pending",
+            })
+            .returning();
+          segments.push(segment);
+        }
+      }
+
+      // Update itinerary status to "requested"
+      await db
+        .update(itineraries)
+        .set({ status: "requested", updatedAt: new Date() })
+        .where(eq(itineraries.id, itineraryId));
+
+      res.json({ ...rfq, segments });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // ===== RFQ Routes (Agency - Legacy) =====
 
   app.post("/api/agency/rfqs", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
@@ -1374,6 +1562,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generic RFQ list endpoint - supports both agency contacts and regular users
+  app.get("/api/rfqs", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const user = req.user as any;
+      const userId = user.id;
+      const agencyId = user.agencyId;
+
+      // Build where condition based on user type
+      const whereCondition = agencyId 
+        ? eq(rfqs.agencyId, agencyId)
+        : eq(rfqs.userId, userId);
+
+      const rfqsData = await db
+        .select({
+          id: rfqs.id,
+          tenantId: rfqs.tenantId,
+          itineraryId: rfqs.itineraryId,
+          agencyId: rfqs.agencyId,
+          userId: rfqs.userId,
+          requestedByContactId: rfqs.requestedByContactId,
+          status: rfqs.status,
+          expiresAt: rfqs.expiresAt,
+          createdAt: rfqs.createdAt,
+          updatedAt: rfqs.updatedAt,
+          itineraryTitle: itineraries.title,
+          itineraryStartDate: itineraries.startDate,
+          itineraryEndDate: itineraries.endDate,
+          tenantName: tenants.name,
+        })
+        .from(rfqs)
+        .leftJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
+        .leftJoin(tenants, eq(rfqs.tenantId, tenants.id))
+        .where(whereCondition)
+        .orderBy(desc(rfqs.createdAt));
+
+      res.json(rfqsData);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Legacy agency endpoint - redirects to generic endpoint
   app.get("/api/agency/rfqs", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const agencyId = (req.user as any).agencyId;
