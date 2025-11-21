@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Plus, Calendar, MapPin, Users, FileText } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,17 +21,96 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
+import { useLocation } from "wouter";
+
+interface Tenant {
+  id: string;
+  name: string;
+  countryCode: string;
+}
 
 export default function ItinerariesPage() {
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    tenantId: "",
+    title: "",
+    paxAdults: 2,
+    paxChildren: 0,
+    startDate: "",
+    endDate: "",
+    notes: "",
+  });
 
   const { data: itineraries, isLoading } = useQuery<any[]>({
     queryKey: ["/api/itineraries"],
     initialData: [],
   });
+
+  const { data: tenants } = useQuery<Tenant[]>({
+    queryKey: ["/api/user/tenants"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const response = await apiRequest("POST", "/api/itineraries", data);
+      return await response.json();
+    },
+    onSuccess: (itinerary) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/itineraries"] });
+      toast({
+        title: "Success",
+        description: "Itinerary created successfully",
+      });
+      setIsDialogOpen(false);
+      setFormData({
+        tenantId: "",
+        title: "",
+        paxAdults: 2,
+        paxChildren: 0,
+        startDate: "",
+        endDate: "",
+        notes: "",
+      });
+      setLocation(`/itineraries/${itinerary.id}`);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create itinerary",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.tenantId || !formData.title || !formData.startDate || !formData.endDate) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    createMutation.mutate(formData);
+  };
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -71,13 +150,34 @@ export default function ItinerariesPage() {
                 Start building a new travel itinerary for your clients
               </DialogDescription>
             </DialogHeader>
-            <form className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="tenant">Country</Label>
+                <Select
+                  value={formData.tenantId}
+                  onValueChange={(value) => setFormData({ ...formData, tenantId: value })}
+                >
+                  <SelectTrigger data-testid="select-tenant">
+                    <SelectValue placeholder="Select country" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenants?.map((tenant) => (
+                      <SelectItem key={tenant.id} value={tenant.id}>
+                        {tenant.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="title">Itinerary Title</Label>
                 <Input
                   id="title"
-                  placeholder="Jordan Heritage Tour 2025"
+                  placeholder="cox toures"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   data-testid="input-title"
+                  disabled={createMutation.isPending}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -87,8 +187,10 @@ export default function ItinerariesPage() {
                     id="adults"
                     type="number"
                     min="1"
-                    defaultValue="2"
+                    value={formData.paxAdults}
+                    onChange={(e) => setFormData({ ...formData, paxAdults: Number(e.target.value) })}
                     data-testid="input-adults"
+                    disabled={createMutation.isPending}
                   />
                 </div>
                 <div className="space-y-2">
@@ -97,8 +199,10 @@ export default function ItinerariesPage() {
                     id="children"
                     type="number"
                     min="0"
-                    defaultValue="0"
+                    value={formData.paxChildren}
+                    onChange={(e) => setFormData({ ...formData, paxChildren: Number(e.target.value) })}
                     data-testid="input-children"
+                    disabled={createMutation.isPending}
                   />
                 </div>
               </div>
@@ -108,7 +212,10 @@ export default function ItinerariesPage() {
                   <Input
                     id="start-date"
                     type="date"
+                    value={formData.startDate}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                     data-testid="input-start-date"
+                    disabled={createMutation.isPending}
                   />
                 </div>
                 <div className="space-y-2">
@@ -116,24 +223,39 @@ export default function ItinerariesPage() {
                   <Input
                     id="end-date"
                     type="date"
+                    value={formData.endDate}
+                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                     data-testid="input-end-date"
+                    disabled={createMutation.isPending}
                   />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="notes">Notes (Optional)</Label>
-                <Input
+                <Textarea
                   id="notes"
                   placeholder="Special requirements or preferences"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   data-testid="input-notes"
+                  disabled={createMutation.isPending}
                 />
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setIsDialogOpen(false)}
+                  disabled={createMutation.isPending}
+                >
                   Cancel
                 </Button>
-                <Button type="submit" data-testid="button-save-itinerary">
-                  Create Itinerary
+                <Button 
+                  type="submit" 
+                  data-testid="button-save-itinerary"
+                  disabled={createMutation.isPending}
+                >
+                  {createMutation.isPending ? "Creating..." : "Create Itinerary"}
                 </Button>
               </DialogFooter>
             </form>
