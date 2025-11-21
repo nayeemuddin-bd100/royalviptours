@@ -118,22 +118,17 @@ export function AppSidebar() {
       return adminItems;
     }
 
-    // Check if user has any supplier roles
+    // Check if user has country manager role
     if (userTenants && userTenants.length > 0) {
-      const hasSupplierRole = userTenants.some((ut) => 
-        ['transport', 'hotel', 'guide', 'sight'].includes(ut.tenantRole)
-      );
-      if (hasSupplierRole) {
-        return supplierItems;
-      }
-
       const hasManagerRole = userTenants.some((ut) => ut.tenantRole === 'country_manager');
       if (hasManagerRole) {
         return managerItems;
       }
     }
     
-    // Default to agency
+    // For all regular users (including those with supplier roles),
+    // show agency navigation (Dashboard, My Itineraries, RFQs, Quotes, Account)
+    // This allows users to create itineraries and manage travel requests
     return agencyItems;
   };
 
