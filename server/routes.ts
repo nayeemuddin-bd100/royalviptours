@@ -1273,6 +1273,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/tenants", requireAuth, requireRole("admin"), async (req, res, next) => {
     try {
       const body = insertTenantSchema.parse(req.body);
+      
+      // Check if tenant with this country code already exists
+      const existingTenant = await db.select().from(tenants).where(eq(tenants.countryCode, body.countryCode));
+      
+      if (existingTenant.length > 0) {
+        return res.status(400).json({ message: `A tenant with country code "${body.countryCode}" already exists` });
+      }
+      
       const [tenant] = await db.insert(tenants).values(body).returning();
       
       // Log tenant creation
