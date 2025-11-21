@@ -6,9 +6,35 @@ Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline gro
 
 The application serves as a productivity-focused information management system for the travel industry, enabling efficient collaboration between country managers who coordinate local suppliers and travel agencies requesting services.
 
-## Recent Progress (November 20, 2025)
+## Recent Progress (November 21, 2025)
 
-**Completed: All Supplier Catalog Management & Country Manager Features**
+**Completed: Audit Logging System**
+- **Database Schema** - New `audit_logs` table with comprehensive tracking fields:
+  - Action types: user_login, user_logout, user_created, tenant_created/updated/deleted
+  - User context: ID, name, email captured at time of action
+  - Entity tracking: type and ID of affected resources
+  - Technical metadata: IP address, user agent, additional JSON details
+- **Backend Infrastructure**:
+  - Centralized audit helper (`server/lib/audit.ts`) for consistent logging
+  - Automatic user context extraction from authenticated requests
+  - Internal try/catch to prevent logging failures from breaking request flows
+  - Admin-only API endpoint: `GET /api/admin/audit` with DESC ordering
+- **Route Integration** - Audit logging added to critical actions:
+  - Authentication: Login and logout tracking
+  - User management: User creation
+  - Tenant management: Create, update, delete operations
+- **Frontend** - Audit Logs page at `/admin/audit`:
+  - Admin-only access with proper role enforcement
+  - Table display with action, user, entity, timestamp, IP address
+  - Loading states and empty state messaging
+  - Formatted timestamps using date-fns
+- **Testing** - E2E test verified complete workflow:
+  - Login action creates audit entry with correct user details
+  - Audit page displays entries with proper formatting
+  - IP address and timestamps captured correctly
+- Architect approved with "Pass" verdict
+
+**Previous: All Supplier Catalog Management & Country Manager Features** (November 20, 2025)
 - **Tour Guide Management** - Full CRUD for guide profiles, languages, specialties, daily fees
 - **Sight Management** - Full CRUD for attractions with entry fees, operating hours, JSON-based data
 - **Country Manager Catalog** - Complete CRUD for cities, airports, event categories, amenities
