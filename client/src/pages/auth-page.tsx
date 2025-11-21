@@ -26,20 +26,28 @@ export default function AuthPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    await loginMutation.mutateAsync({
-      email: loginEmail,
-      password: loginPassword,
-      userType,
-    });
+    try {
+      await loginMutation.mutateAsync({
+        email: loginEmail,
+        password: loginPassword,
+        userType,
+      });
+    } catch (error) {
+      // Error is handled by mutation's onError callback
+    }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    await registerMutation.mutateAsync({
-      email: registerEmail,
-      password: registerPassword,
-      name: registerName,
-    });
+    try {
+      await registerMutation.mutateAsync({
+        email: registerEmail,
+        password: registerPassword,
+        name: registerName,
+      });
+    } catch (error) {
+      // Error is handled by mutation's onError callback
+    }
   };
 
   return (
