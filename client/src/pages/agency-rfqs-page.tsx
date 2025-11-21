@@ -32,15 +32,15 @@ export default function AgencyRfqsPage() {
   const from_itinerary = searchParams.get('from_itinerary');
 
   const { data: rfqs, isLoading } = useQuery<RfqData[]>({
-    queryKey: ["/api/agency/rfqs"],
+    queryKey: ["/api/rfqs"],
   });
 
   const createRfqMutation = useMutation({
     mutationFn: async (itineraryId: string) => {
-      return await apiRequest("POST", "/api/agency/rfqs", { itineraryId });
+      return await apiRequest("POST", "/api/rfqs", { itineraryId });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agency/rfqs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rfqs"] });
       toast({
         title: "RFQ Created",
         description: "Quote request has been sent to suppliers",

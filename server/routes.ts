@@ -1213,7 +1213,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Critical security check: Verify itinerary belongs to THIS user/agency
       const whereCondition = agencyId
         ? and(eq(itineraries.id, itineraryId), eq(itineraries.agencyId, agencyId))
-        : and(eq(itineraries.id, itineraryId), eq(itineraries.userId, userId));
+        : and(eq(itineraries.id, itineraryId), eq(itineraries.createdByUserId, userId));
 
       const [itinerary] = await db
         .select()
