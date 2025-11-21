@@ -59,9 +59,8 @@ export default function ItinerariesPage() {
     notes: "",
   });
 
-  const { data: itineraries, isLoading } = useQuery<any[]>({
+  const { data: itineraries = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/itineraries"],
-    initialData: [],
   });
 
   const { data: userTenants } = useQuery<UserTenant[]>({
