@@ -43,7 +43,7 @@ function Router() {
       <ProtectedRoute path="/agency/account" component={AgencyAccountPage} />
       <ProtectedRoute path="/itineraries/new" component={AgencyItineraryNewPage} />
       <ProtectedRoute path="/itineraries/:id" component={AgencyItineraryEditPage} />
-      <ProtectedRoute path="/itineraries" component={AgencyItinerariesPage} />
+      <ProtectedRoute path="/itineraries" component={ItinerariesPage} />
       <ProtectedRoute path="/rfqs/:id" component={AgencyRfqDetailPage} />
       <ProtectedRoute path="/rfqs" component={AgencyRfqsPage} />
       <ProtectedRoute path="/quotes" component={QuotesPage} />

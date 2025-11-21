@@ -614,6 +614,315 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User-created itineraries (for regular authenticated users)
+  app.get("/api/itineraries", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const userId = req.user!.id;
+
+      // Get all itineraries created by this user
+      const userItineraries = await db
+        .select()
+        .from(itineraries)
+        .where(eq(itineraries.createdByUserId, userId))
+        .orderBy(desc(itineraries.createdAt));
+
+      // Get user's current tenant IDs
+      const userTenantIds = await db
+        .select({ tenantId: userTenants.tenantId })
+        .from(userTenants)
+        .where(eq(userTenants.userId, userId));
+
+      const allowedTenantIds = new Set(userTenantIds.map(ut => ut.tenantId));
+      
+      // Filter to only include itineraries where user still has tenant access
+      const accessibleItineraries = userItineraries.filter(
+        itinerary => allowedTenantIds.has(itinerary.tenantId)
+      );
+
+      res.json(accessibleItineraries);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/itineraries", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const userId = req.user!.id;
+
+      const itineraryData = z.object({
+        tenantId: z.string(),
+        title: z.string().min(1),
+        paxAdults: z.number().int().min(1),
+        paxChildren: z.number().int().min(0).optional(),
+        startDate: z.string().transform((str) => new Date(str)),
+        endDate: z.string().transform((str) => new Date(str)),
+        notes: z.string().optional(),
+      }).parse(req.body);
+
+      // Verify user has access to this tenant
+      const userTenantAccess = await db
+        .select()
+        .from(userTenants)
+        .where(and(
+          eq(userTenants.userId, userId),
+          eq(userTenants.tenantId, itineraryData.tenantId)
+        ));
+
+      if (userTenantAccess.length === 0) {
+        return res.status(403).json({ message: "You do not have access to this tenant" });
+      }
+
+      // Calculate number of days
+      const start = new Date(itineraryData.startDate);
+      const end = new Date(itineraryData.endDate);
+      const dayCount = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      // Create itinerary (user-owned, no agencyId)
+      const [newItinerary] = await db
+        .insert(itineraries)
+        .values({
+          ...itineraryData,
+          createdByUserId: userId,
+          agencyId: null,
+          paxChildren: itineraryData.paxChildren || 0,
+        })
+        .returning();
+
+      // Create days
+      const dayPromises = [];
+      for (let i = 0; i < dayCount; i++) {
+        const dayDate = new Date(start);
+        dayDate.setDate(start.getDate() + i);
+        dayPromises.push(
+          db.insert(itineraryDays).values({
+            itineraryId: newItinerary.id,
+            dayNumber: i + 1,
+            date: dayDate,
+          }).returning()
+        );
+      }
+      await Promise.all(dayPromises);
+
+      res.json(newItinerary);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/itineraries/:id", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(and(
+          eq(itineraries.id, id),
+          eq(itineraries.createdByUserId, userId)
+        ));
+
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Re-validate tenant membership (security: prevent access after removal)
+      const userTenantAccess = await db
+        .select()
+        .from(userTenants)
+        .where(and(
+          eq(userTenants.userId, userId),
+          eq(userTenants.tenantId, itinerary.tenantId)
+        ));
+
+      if (userTenantAccess.length === 0) {
+        return res.status(403).json({ message: "You no longer have access to this tenant" });
+      }
+
+      // Fetch days with events
+      const days = await db
+        .select()
+        .from(itineraryDays)
+        .where(eq(itineraryDays.itineraryId, id))
+        .orderBy(itineraryDays.dayNumber);
+
+      const daysWithEvents = await Promise.all(
+        days.map(async (day) => {
+          const events = await db
+            .select()
+            .from(itineraryEvents)
+            .where(eq(itineraryEvents.dayId, day.id))
+            .orderBy(itineraryEvents.createdAt);
+          return { ...day, events };
+        })
+      );
+
+      res.json({ ...itinerary, days: daysWithEvents });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Event management for user-created itineraries
+  app.post("/api/itineraries/:itineraryId/events", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { itineraryId } = req.params;
+      const userId = req.user!.id;
+
+      // Verify itinerary belongs to user
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(and(
+          eq(itineraries.id, itineraryId),
+          eq(itineraries.createdByUserId, userId)
+        ));
+
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Re-validate tenant membership (security: prevent access after removal)
+      const userTenantAccess = await db
+        .select()
+        .from(userTenants)
+        .where(and(
+          eq(userTenants.userId, userId),
+          eq(userTenants.tenantId, itinerary.tenantId)
+        ));
+
+      if (userTenantAccess.length === 0) {
+        return res.status(403).json({ message: "You no longer have access to this tenant" });
+      }
+
+      const eventData = z.object({
+        dayId: z.string(),
+        categoryId: z.string().optional(),
+        eventType: z.string().min(1),
+        summary: z.string().min(1),
+        details: z.any(),
+        startTime: z.string().optional(),
+        endTime: z.string().optional(),
+        supplierRef: z.any().optional(),
+        quantity: z.number().int().min(1).optional(),
+        unit: z.string().optional(),
+      }).parse(req.body);
+
+      const [newEvent] = await db
+        .insert(itineraryEvents)
+        .values({
+          tenantId: itinerary.tenantId,
+          itineraryId: itineraryId,
+          dayId: eventData.dayId,
+          categoryId: eventData.categoryId || null,
+          eventType: eventData.eventType,
+          summary: eventData.summary,
+          details: eventData.details,
+          startTime: eventData.startTime || null,
+          endTime: eventData.endTime || null,
+          supplierRef: eventData.supplierRef || null,
+          quantity: eventData.quantity || 1,
+          unit: eventData.unit || null,
+        })
+        .returning();
+
+      res.json(newEvent);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/itineraries/:itineraryId/events/:eventId", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { itineraryId, eventId } = req.params;
+      const userId = req.user!.id;
+
+      // Verify itinerary belongs to user
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(and(
+          eq(itineraries.id, itineraryId),
+          eq(itineraries.createdByUserId, userId)
+        ));
+
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Re-validate tenant membership (security: prevent access after removal)
+      const userTenantAccess = await db
+        .select()
+        .from(userTenants)
+        .where(and(
+          eq(userTenants.userId, userId),
+          eq(userTenants.tenantId, itinerary.tenantId)
+        ));
+
+      if (userTenantAccess.length === 0) {
+        return res.status(403).json({ message: "You no longer have access to this tenant" });
+      }
+
+      const updateData = insertItineraryEventSchema.partial().parse(req.body);
+
+      const [updatedEvent] = await db
+        .update(itineraryEvents)
+        .set({ ...updateData, updatedAt: new Date() })
+        .where(and(
+          eq(itineraryEvents.id, eventId),
+          eq(itineraryEvents.itineraryId, itineraryId)
+        ))
+        .returning();
+
+      res.json(updatedEvent);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/itineraries/:itineraryId/events/:eventId", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { itineraryId, eventId } = req.params;
+      const userId = req.user!.id;
+
+      // Verify itinerary belongs to user
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(and(
+          eq(itineraries.id, itineraryId),
+          eq(itineraries.createdByUserId, userId)
+        ));
+
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Re-validate tenant membership (security: prevent access after removal)
+      const userTenantAccess = await db
+        .select()
+        .from(userTenants)
+        .where(and(
+          eq(userTenants.userId, userId),
+          eq(userTenants.tenantId, itinerary.tenantId)
+        ));
+
+      if (userTenantAccess.length === 0) {
+        return res.status(403).json({ message: "You no longer have access to this tenant" });
+      }
+
+      await db.delete(itineraryEvents).where(and(
+        eq(itineraryEvents.id, eventId),
+        eq(itineraryEvents.itineraryId, itineraryId)
+      ));
+
+      res.json({ message: "Event deleted" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Agency-created itineraries
   app.post("/api/agency/itineraries", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const agencyId = (req.user as any).agencyId;
@@ -639,6 +948,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .values({
           ...itineraryData,
           agencyId: agencyId,
+          createdByUserId: null,
           paxChildren: itineraryData.paxChildren || 0,
         })
         .returning();
@@ -2920,88 +3230,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ===== Itinerary Routes =====
-  
-  app.get("/api/itineraries", requireAuth, async (req: AuthRequest, res, next) => {
-    try {
-      // Itineraries can be accessed by agency users or country managers
-      // For now, just require authentication - will add proper agency scoping later
-      const allItineraries = await db.select().from(itineraries)
-        .orderBy(desc(itineraries.createdAt));
-      res.json(allItineraries);
-    } catch (error: any) {
-      next(error);
-    }
-  });
-
-  app.post("/api/itineraries", requireAuth, async (req, res, next) => {
-    try {
-      const body = insertItinerarySchema.parse(req.body);
-      const [itinerary] = await db.insert(itineraries).values(body).returning();
-      res.json(itinerary);
-    } catch (error: any) {
-      next(error);
-    }
-  });
-
-  app.get("/api/itineraries/:id", requireAuth, async (req, res, next) => {
-    try {
-      const { id } = req.params;
-      const [itinerary] = await db.select().from(itineraries).where(eq(itineraries.id, id));
-      if (!itinerary) {
-        return res.status(404).json({ message: "Itinerary not found" });
-      }
-      res.json(itinerary);
-    } catch (error: any) {
-      next(error);
-    }
-  });
-
-  app.get("/api/itineraries/:id/events", requireAuth, async (req, res, next) => {
-    try {
-      const { id } = req.params;
-      const events = await db.select().from(itineraryEvents).where(eq(itineraryEvents.itineraryId, id));
-      res.json(events);
-    } catch (error: any) {
-      next(error);
-    }
-  });
-
-  app.post("/api/itineraries/:id/events", requireAuth, async (req, res, next) => {
-    try {
-      const { id } = req.params;
-      const body = insertItineraryEventSchema.parse({ ...req.body, itineraryId: id });
-      const [event] = await db.insert(itineraryEvents).values(body).returning();
-      res.json(event);
-    } catch (error: any) {
-      next(error);
-    }
-  });
-
-  app.post("/api/itineraries/:id/request-quote", requireAuth, async (req, res, next) => {
-    try {
-      const { id } = req.params;
-      const [itinerary] = await db.select().from(itineraries).where(eq(itineraries.id, id));
-      
-      if (!itinerary) {
-        return res.status(404).json({ message: "Itinerary not found" });
-      }
-
-      const [rfq] = await db.insert(rfqs).values({
-        tenantId: itinerary.tenantId,
-        itineraryId: id,
-        agencyId: itinerary.agencyId,
-        status: "open",
-        expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days
-      }).returning();
-
-      await db.update(itineraries).set({ status: "requested" }).where(eq(itineraries.id, id));
-
-      res.json(rfq);
-    } catch (error: any) {
-      next(error);
-    }
-  });
 
   // ===== RFQ Routes =====
   

@@ -43,10 +43,11 @@ export default function AgencyItineraryNewPage() {
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const response = await apiRequest("POST", "/api/agency/itineraries", data);
+      const response = await apiRequest("POST", "/api/itineraries", data);
       return await response.json();
     },
     onSuccess: (itinerary) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/itineraries"] });
       toast({
         title: "Itinerary created",
         description: "Your itinerary has been successfully created.",

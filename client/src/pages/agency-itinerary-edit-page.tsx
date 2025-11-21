@@ -95,17 +95,17 @@ export default function AgencyItineraryEditPage() {
   });
 
   const { data: itinerary, isLoading, error } = useQuery<Itinerary>({
-    queryKey: ["/api/agency/itineraries", itineraryId],
+    queryKey: ["/api/itineraries", itineraryId],
     enabled: !!itineraryId,
   });
 
   const createEventMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", `/api/agency/itineraries/${itineraryId}/events`, data);
+      const response = await apiRequest("POST", `/api/itineraries/${itineraryId}/events`, data);
       return await response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agency/itineraries", itineraryId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/itineraries", itineraryId] });
       setIsAddingEvent(false);
       setSelectedDayId(null);
       setEventFormData({ eventType: "", summary: "", startTime: "", endTime: "", details: {} });
@@ -125,11 +125,11 @@ export default function AgencyItineraryEditPage() {
 
   const updateEventMutation = useMutation({
     mutationFn: async ({ eventId, data }: { eventId: string; data: any }) => {
-      const response = await apiRequest("PATCH", `/api/agency/itineraries/${itineraryId}/events/${eventId}`, data);
+      const response = await apiRequest("PATCH", `/api/itineraries/${itineraryId}/events/${eventId}`, data);
       return await response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agency/itineraries", itineraryId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/itineraries", itineraryId] });
       setEditingEvent(null);
       setEventFormData({ eventType: "", summary: "", startTime: "", endTime: "", details: {} });
       toast({
@@ -148,9 +148,9 @@ export default function AgencyItineraryEditPage() {
 
   const deleteEventMutation = useMutation({
     mutationFn: (eventId: string) =>
-      apiRequest("DELETE", `/api/agency/itineraries/${itineraryId}/events/${eventId}`),
+      apiRequest("DELETE", `/api/itineraries/${itineraryId}/events/${eventId}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agency/itineraries", itineraryId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/itineraries", itineraryId] });
       toast({
         title: "Event deleted",
         description: "Event has been successfully removed.",

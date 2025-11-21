@@ -398,7 +398,8 @@ export const eventsCatalog = pgTable("events_catalog", {
 export const itineraries = pgTable("itineraries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-  agencyId: varchar("agency_id").notNull().references(() => agencies.id, { onDelete: "cascade" }),
+  agencyId: varchar("agency_id").references(() => agencies.id, { onDelete: "cascade" }),
+  createdByUserId: varchar("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   paxAdults: integer("pax_adults").notNull(),
   paxChildren: integer("pax_children").default(0),
