@@ -22,6 +22,15 @@ export const itineraryStatusEnum = pgEnum("itinerary_status", ["draft", "request
 export const rfqStatusEnum = pgEnum("rfq_status", ["open", "in_progress", "supplier_pending", "quoted", "declined"]);
 export const supplierTypeEnum = pgEnum("supplier_type", ["transport", "hotel", "guide", "sight"]);
 export const segmentStatusEnum = pgEnum("segment_status", ["pending", "supplier_review", "supplier_proposed", "accepted", "rejected"]);
+export const auditActionEnum = pgEnum("audit_action", [
+  "user_created", "user_updated", "user_deleted", "user_login", "user_logout",
+  "tenant_created", "tenant_updated", "tenant_deleted",
+  "agency_created", "agency_updated", "agency_deleted",
+  "itinerary_created", "itinerary_updated", "itinerary_deleted",
+  "rfq_created", "rfq_updated", "rfq_deleted",
+  "quote_created", "quote_updated", "quote_deleted",
+  "other"
+]);
 
 // === Global Tables ===
 
@@ -47,6 +56,20 @@ export const refreshTokens = pgTable("refresh_tokens", {
   tokenHash: text("token_hash").notNull().unique(),
   expiresAt: timestamp("expires_at").notNull(),
   revokedAt: timestamp("revoked_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"), // User who performed the action
+  userName: text("user_name"), // Cached user name for historical reference
+  userEmail: text("user_email"), // Cached user email for historical reference
+  action: auditActionEnum("action").notNull(),
+  entityType: text("entity_type"), // Type of entity affected (e.g., "user", "tenant", "agency")
+  entityId: varchar("entity_id"), // ID of the affected entity
+  details: jsonb("details"), // Additional context about the action
+  ipAddress: text("ip_address"), // IP address of the user
+  userAgent: text("user_agent"), // Browser/client user agent
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -574,6 +597,7 @@ export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true, cre
 
 // Insert schemas
 export const insertRefreshTokenSchema = createInsertSchema(refreshTokens).omit({ id: true, createdAt: true });
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -618,3 +642,5 @@ export type RfqSegment = typeof rfqSegments.$inferSelect;
 export type InsertRfqSegment = z.infer<typeof insertRfqSegmentSchema>;
 export type Quote = typeof quotes.$inferSelect;
 export type InsertQuote = z.infer<typeof insertQuoteSchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;

@@ -5,7 +5,7 @@ import {
   users, tenants, userTenants, cities, airports, eventCategories, amenities,
   transportCompanies, transportProducts, fleets, hotels, roomTypes, mealPlans, hotelRates,
   tourGuides, sights, itineraries, itineraryDays, itineraryEvents, 
-  rfqs, rfqSegments, quotes, agencies, agencyContacts, agencyAddresses,
+  rfqs, rfqSegments, quotes, agencies, agencyContacts, agencyAddresses, auditLogs,
   insertUserSchema, insertTenantSchema, insertCitySchema, insertAirportSchema,
   insertEventCategorySchema, insertAmenitySchema, insertTransportCompanySchema,
   insertTransportProductSchema, insertHotelSchema, insertRoomTypeSchema,
@@ -1339,6 +1339,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { password, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // ===== Admin Routes - Audit Logs =====
+
+  app.get("/api/admin/audit", requireAuth, requireRole("admin"), async (req, res, next) => {
+    try {
+      const logs = await db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt));
+      res.json(logs);
     } catch (error: any) {
       next(error);
     }

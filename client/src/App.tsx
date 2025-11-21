@@ -12,6 +12,7 @@ import AuthPage from "@/pages/auth-page";
 import HomePage from "@/pages/home-page";
 import TenantsPage from "@/pages/admin/tenants-page";
 import UsersPage from "@/pages/admin/users-page";
+import AuditLogsPage from "@/pages/admin/audit-logs-page";
 import ItinerariesPage from "@/pages/itineraries-page";
 import QuotesPage from "@/pages/quotes-page";
 import AgencyRegistrationPage from "@/pages/agency-registration-page";
@@ -34,6 +35,7 @@ function Router() {
       <ProtectedRoute path="/" component={HomePage} />
       <ProtectedRoute path="/admin/tenants" component={TenantsPage} />
       <ProtectedRoute path="/admin/users" component={UsersPage} />
+      <ProtectedRoute path="/admin/audit" component={AuditLogsPage} />
       <ProtectedRoute path="/supplier" component={SupplierDashboard} />
       <ProtectedRoute path="/supplier/rfq-inbox" component={SupplierRfqInboxPage} />
       <ProtectedRoute path="/country-manager/catalog" component={CountryManagerCatalogPage} />
