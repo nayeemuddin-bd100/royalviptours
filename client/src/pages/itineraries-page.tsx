@@ -36,10 +36,13 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
 
-interface Tenant {
+interface UserTenant {
   id: string;
-  name: string;
-  countryCode: string;
+  tenantId: string;
+  tenantRole: string;
+  tenantName: string;
+  tenantCountryCode: string;
+  tenantStatus: string;
 }
 
 export default function ItinerariesPage() {
@@ -61,7 +64,7 @@ export default function ItinerariesPage() {
     initialData: [],
   });
 
-  const { data: tenants } = useQuery<Tenant[]>({
+  const { data: userTenants } = useQuery<UserTenant[]>({
     queryKey: ["/api/user/tenants"],
   });
 
@@ -161,9 +164,9 @@ export default function ItinerariesPage() {
                     <SelectValue placeholder="Select country" />
                   </SelectTrigger>
                   <SelectContent>
-                    {tenants?.map((tenant) => (
-                      <SelectItem key={tenant.id} value={tenant.id}>
-                        {tenant.name}
+                    {userTenants?.map((userTenant) => (
+                      <SelectItem key={userTenant.id} value={userTenant.tenantId}>
+                        {userTenant.tenantName}
                       </SelectItem>
                     ))}
                   </SelectContent>
