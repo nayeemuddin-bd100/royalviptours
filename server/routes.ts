@@ -15,6 +15,7 @@ import {
 } from "@shared/schema";
 import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import { hashPassword, comparePassword, generateAccessToken, generateRefreshToken, verifyRefreshToken, revokeRefreshToken, revokeAllUserTokens, verifyToken, requireAuth, requireRole, requireTenantRole, requireAgencyContact, type AuthRequest } from "./lib/auth";
+import { logAudit } from "./lib/audit";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -103,6 +104,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const refreshToken = await generateRefreshToken(user.id);
       const { password: _, ...userWithoutPassword } = user;
       
+      // Log successful login
+      await logAudit(req, {
+        action: "user_login",
+        entityType: "user",
+        entityId: user.id,
+        userId: user.id,
+        userName: user.name,
+        userEmail: user.email,
+        details: { role: user.role },
+      });
+      
       res.json({ ...userWithoutPassword, accessToken, refreshToken });
     } catch (error: any) {
       next(error);
@@ -113,6 +125,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Revoke all refresh tokens for this user
       await revokeAllUserTokens(req.user!.id);
+      
+      // Log logout
+      await logAudit(req, {
+        action: "user_logout",
+        entityType: "user",
+        entityId: req.user!.id,
+      });
+      
       res.json({ message: "Logged out successfully" });
     } catch (error: any) {
       next(error);
@@ -1254,6 +1274,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const body = insertTenantSchema.parse(req.body);
       const [tenant] = await db.insert(tenants).values(body).returning();
+      
+      // Log tenant creation
+      await logAudit(req, {
+        action: "tenant_created",
+        entityType: "tenant",
+        entityId: tenant.id,
+        details: { countryCode: tenant.countryCode, name: tenant.name },
+      });
+      
       res.json(tenant);
     } catch (error: any) {
       next(error);
@@ -1265,6 +1294,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const body = insertTenantSchema.partial().parse(req.body);
       const [tenant] = await db.update(tenants).set(body).where(eq(tenants.id, id)).returning();
+      
+      // Log tenant update
+      await logAudit(req, {
+        action: "tenant_updated",
+        entityType: "tenant",
+        entityId: tenant.id,
+        details: { changes: body },
+      });
+      
       res.json(tenant);
     } catch (error: any) {
       next(error);
@@ -1275,6 +1313,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       await db.delete(tenants).where(eq(tenants.id, id));
+      
+      // Log tenant deletion
+      await logAudit(req, {
+        action: "tenant_deleted",
+        entityType: "tenant",
+        entityId: id,
+      });
+      
       res.json({ message: "Tenant deleted" });
     } catch (error: any) {
       next(error);
@@ -1336,6 +1382,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashPassword(body.password),
         status: "active",
       }).returning();
+
+      // Log user creation
+      await logAudit(req, {
+        action: "user_created",
+        entityType: "user",
+        entityId: user.id,
+        details: { email: user.email, role: user.role, name: user.name },
+      });
 
       const { password, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
