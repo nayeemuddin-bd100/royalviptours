@@ -7,7 +7,7 @@ import { z } from "zod";
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["admin", "user"]);
 export const userStatusEnum = pgEnum("user_status", ["pending", "active", "suspended"]);
-export const tenantRoleEnum = pgEnum("tenant_role", ["country_manager", "transport", "hotel", "guide", "sight"]);
+export const tenantRoleEnum = pgEnum("tenant_role", ["travel_agent", "country_manager", "transport", "hotel", "guide", "sight"]);
 export const tenantStatusEnum = pgEnum("tenant_status", ["active", "inactive"]);
 export const agencyTypeEnum = pgEnum("agency_type", ["tour_operator", "travel_agency", "dmc", "other"]);
 export const contactStatusEnum = pgEnum("contact_status", ["pending", "active", "suspended"]);
@@ -88,7 +88,7 @@ export const userTenants = pgTable("user_tenants", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-  tenantRole: tenantRoleEnum("tenant_role"), // Nullable for Travel Agents who have tenant access but no specific role
+  tenantRole: tenantRoleEnum("tenant_role").notNull(), // Required tenant role (travel_agent, country_manager, or supplier types)
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   uniqueUserTenant: unique().on(table.userId, table.tenantId)

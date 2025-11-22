@@ -120,6 +120,12 @@ export function AppSidebar() {
 
     // Check for specialized roles
     if (userTenants && userTenants.length > 0) {
+      // Check if user has travel agent role
+      const hasTravelAgentRole = userTenants.some((ut) => ut.tenantRole === 'travel_agent');
+      if (hasTravelAgentRole) {
+        return agencyItems;
+      }
+      
       // Check if user has country manager role
       const hasManagerRole = userTenants.some((ut) => ut.tenantRole === 'country_manager');
       if (hasManagerRole) {

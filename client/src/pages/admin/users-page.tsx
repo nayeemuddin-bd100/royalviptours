@@ -400,7 +400,7 @@ export default function UsersPage() {
                         <TableCell className="font-mono text-xs">{user.email}</TableCell>
                         <TableCell>
                           <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">
-                            {user.role === "user" ? "travel agent" : user.role.replace(/_/g, " ")}
+                            {user.role === "user" ? "travel agent" : user.role?.replace(/_/g, " ") || "N/A"}
                           </Badge>
                         </TableCell>
                         <TableCell>

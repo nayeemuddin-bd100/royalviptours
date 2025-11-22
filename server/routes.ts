@@ -2035,14 +2035,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).returning();
 
       // Assign tenant role based on account type
-      let assignedRole: string | null = null;
+      let assignedRole: string;
       
       if (accountType === "travel_agent") {
-        assignedRole = null; // Travel agents have no specific role
+        assignedRole = "travel_agent";
       } else if (accountType === "country_manager") {
         assignedRole = "country_manager";
       } else if (accountType === "supplier") {
         assignedRole = supplierType || "transport";
+      } else {
+        return res.status(400).json({ message: "Invalid account type" });
       }
 
       // Create user_tenants record
