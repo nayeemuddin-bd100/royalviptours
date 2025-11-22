@@ -57,20 +57,34 @@ export default function UsersPage() {
     queryKey: ["/api/admin/user-tenants"],
   });
 
+  const { data: tenants, isLoading: tenantsListLoading } = useQuery<Tenant[]>({
+    queryKey: ["/api/tenants"],
+  });
+
   const isLoading = usersLoading || tenantsLoading;
 
   const createUserMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; name: string; role: string }) => {
-      const res = await apiRequest("POST", "/api/admin/users", data);
+    mutationFn: async (data: {
+      email: string;
+      password: string;
+      name: string;
+      accountType: string;
+      tenantId?: string;
+      supplierType?: string;
+    }) => {
+      const res = await apiRequest("POST", "/api/admin/users/create-with-role", data);
       return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/user-tenants"] });
       setDialogOpen(false);
       setEmail("");
       setPassword("");
       setName("");
-      setRole("user");
+      setAccountType("travel_agent");
+      setSelectedTenant("");
+      setSupplierType("transport");
       toast({
         title: "User created",
         description: "The user account has been created successfully.",
@@ -87,14 +101,51 @@ export default function UsersPage() {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    createUserMutation.mutate({ email, password, name, role });
+
+    if (accountType === "travel_agent" || accountType === "country_manager") {
+      if (!selectedTenant) {
+        toast({
+          title: "Validation error",
+          description: "Please select a country for this account",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    const payload: any = {
+      email,
+      password,
+      name,
+      accountType,
+    };
+
+    if (accountType === "travel_agent" || accountType === "country_manager") {
+      payload.tenantId = selectedTenant;
+    }
+
+    if (accountType === "supplier") {
+      if (!selectedTenant) {
+        toast({
+          title: "Validation error",
+          description: "Please select a country for this supplier",
+          variant: "destructive",
+        });
+        return;
+      }
+      payload.tenantId = selectedTenant;
+      payload.supplierType = supplierType;
+    }
+
+    createUserMutation.mutate(payload);
   };
 
   const getUserTenants = (userId: string) => {
     return userTenants?.filter(ut => ut.userId === userId) || [];
   };
 
-  const getRoleBadgeVariant = (role: string) => {
+  const getRoleBadgeVariant = (role: string | null) => {
+    if (!role) return "secondary"; // travel agent (null role)
     switch (role) {
       case "admin":
         return "default";
@@ -129,11 +180,11 @@ export default function UsersPage() {
               Create User
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New User</DialogTitle>
               <DialogDescription>
-                Create a new user account. After creation, you can assign them to tenants with specific roles (Country Manager, Supplier, etc.) in the Tenants management page.
+                Create a new user with a specific role: Travel Agent, Country Manager, or Supplier
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateUser} className="space-y-4">
@@ -149,6 +200,7 @@ export default function UsersPage() {
                   data-testid="input-create-name"
                 />
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -161,6 +213,7 @@ export default function UsersPage() {
                   data-testid="input-create-email"
                 />
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <Input
@@ -173,22 +226,63 @@ export default function UsersPage() {
                   data-testid="input-create-password"
                 />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="role">User Role</Label>
-                <Select value={role} onValueChange={setRole}>
-                  <SelectTrigger data-testid="select-create-role">
+                <Label htmlFor="accountType">Account Type</Label>
+                <Select value={accountType} onValueChange={setAccountType}>
+                  <SelectTrigger data-testid="select-account-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">Admin - Full system access</SelectItem>
-                    <SelectItem value="user">User - Standard account</SelectItem>
+                    <SelectItem value="travel_agent">Travel Agent - Creates itineraries & requests quotes</SelectItem>
+                    <SelectItem value="country_manager">Country Manager - Manages country catalog</SelectItem>
+                    <SelectItem value="supplier">Supplier - Provides services (transport, hotel, etc)</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Tenant-specific roles (Country Manager, Supplier) are assigned after creation in the Tenants section.
-                </p>
               </div>
-              <div className="flex gap-2 justify-end">
+
+              {(accountType === "travel_agent" || accountType === "country_manager" || accountType === "supplier") && (
+                <div className="space-y-2">
+                  <Label htmlFor="tenant">Select Country</Label>
+                  <Select value={selectedTenant} onValueChange={setSelectedTenant}>
+                    <SelectTrigger data-testid="select-tenant">
+                      <SelectValue placeholder="Choose a country..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenantsListLoading ? (
+                        <div className="p-2 text-sm">Loading countries...</div>
+                      ) : tenants && tenants.length > 0 ? (
+                        tenants.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name} ({t.countryCode})
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="p-2 text-sm">No countries available</div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {accountType === "supplier" && (
+                <div className="space-y-2">
+                  <Label htmlFor="supplierType">Supplier Type</Label>
+                  <Select value={supplierType} onValueChange={setSupplierType}>
+                    <SelectTrigger data-testid="select-supplier-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="transport">Transport (Car rental, Bus company, etc)</SelectItem>
+                      <SelectItem value="hotel">Hotel</SelectItem>
+                      <SelectItem value="guide">Tour Guide</SelectItem>
+                      <SelectItem value="sight">Attractions & Sights</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end pt-4">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancel
                 </Button>
@@ -243,7 +337,7 @@ export default function UsersPage() {
               {isLoading ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                users?.filter(u => 
+                users?.filter(u =>
                   ["transport", "hotel", "guide", "sight"].includes(u.role)
                 ).length || 0
               )}
@@ -254,7 +348,7 @@ export default function UsersPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Agencies</CardTitle>
+            <CardTitle className="text-sm font-medium">Travel Agents</CardTitle>
             <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -262,7 +356,7 @@ export default function UsersPage() {
               {isLoading ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                users?.filter(u => u.role === "agency").length || 0
+                users?.filter(u => u.role === "user").length || 0
               )}
             </div>
             <p className="text-xs text-muted-foreground">Travel agencies</p>
@@ -274,25 +368,17 @@ export default function UsersPage() {
       <Card>
         <CardHeader>
           <CardTitle>All Users</CardTitle>
-          <CardDescription>Complete list of registered users and their tenant assignments</CardDescription>
+          <CardDescription>Complete list of users and their tenant assignments</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map(i => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
             </div>
-          ) : !users || users.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Users className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-sm text-muted-foreground mb-2">No users found</p>
-              <p className="text-xs text-muted-foreground max-w-sm">
-                Users will appear here once they register
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-md border">
+          ) : users && users.length > 0 ? (
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -314,7 +400,7 @@ export default function UsersPage() {
                         <TableCell className="font-mono text-xs">{user.email}</TableCell>
                         <TableCell>
                           <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">
-                            {user.role.replace(/_/g, " ")}
+                            {user.role === "user" ? "travel agent" : user.role.replace(/_/g, " ")}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -349,6 +435,8 @@ export default function UsersPage() {
                 </TableBody>
               </Table>
             </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">No users found</div>
           )}
         </CardContent>
       </Card>
