@@ -14,7 +14,7 @@ import {
   insertRfqSchema, insertAgencySchema
 } from "@shared/schema";
 import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
-import { hashPassword, comparePassword, generateAccessToken, generateRefreshToken, verifyRefreshToken, revokeRefreshToken, revokeAllUserTokens, verifyToken, requireAuth, requireRole, requireTenantRole, requireAgencyContact, type AuthRequest } from "./lib/auth";
+import { hashPassword, comparePassword, generateAccessToken, generateRefreshToken, verifyRefreshToken, revokeRefreshToken, revokeAllUserTokens, verifyToken, requireAuth, requireRole, requireTenantRole, requireAgencyContact, getAgencyIdForUser, type AuthRequest } from "./lib/auth";
 import { logAudit } from "./lib/audit";
 import { z } from "zod";
 
@@ -269,7 +269,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Agency profile management
   app.get("/api/agency/profile", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const [agency] = await db
         .select()
@@ -288,7 +296,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/agency/profile", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const updateData = insertAgencySchema.partial().parse(req.body);
       
@@ -311,7 +327,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Agency contacts management
   app.get("/api/agency/contacts", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const contacts = await db
         .select({
@@ -338,7 +362,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/agency/contacts", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const newContactData = z.object({
         name: z.string().min(1),
@@ -371,7 +403,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/agency/contacts/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const [targetContact] = await db
         .select()
@@ -416,7 +456,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const contactId = req.user!.id;
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
       
       if (id === contactId) {
         return res.status(400).json({ message: "Cannot delete your own contact" });
@@ -447,7 +495,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Agency addresses management
   app.get("/api/agency/addresses", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const addresses = await db
         .select()
@@ -463,7 +519,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/agency/addresses", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const addressData = z.object({
         street: z.string().min(1),
@@ -491,7 +555,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/agency/addresses/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const [targetAddress] = await db
         .select()
@@ -532,7 +604,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/agency/addresses/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const { id} = req.params;
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const [targetAddress] = await db
         .select()
@@ -559,7 +639,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Agency itinerary management
   app.get("/api/agency/itineraries", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const agencyItineraries = await db
         .select()
@@ -576,7 +664,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/agency/itineraries/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const [itinerary] = await db
         .select()
@@ -925,7 +1021,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Agency-created itineraries
   app.post("/api/agency/itineraries", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const itineraryData = z.object({
         tenantId: z.string(),
@@ -977,7 +1081,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/agency/itineraries/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const [targetItinerary] = await db
         .select()
@@ -1049,7 +1161,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/agency/itineraries/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const [targetItinerary] = await db
         .select()
@@ -1077,7 +1197,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/agency/itineraries/:itineraryId/events", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const { itineraryId } = req.params;
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       // Verify itinerary belongs to agency
       const [itinerary] = await db
@@ -1132,7 +1260,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/agency/itineraries/:itineraryId/events/:eventId", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const { itineraryId, eventId } = req.params;
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       // Verify itinerary belongs to agency
       const [itinerary] = await db
@@ -1171,7 +1307,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/agency/itineraries/:itineraryId/events/:eventId", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const { itineraryId, eventId } = req.params;
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       // Verify itinerary belongs to agency
       const [itinerary] = await db
@@ -1388,7 +1532,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/agency/rfqs", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
       const { itineraryId, expiresAt } = z.object({
         itineraryId: z.string(),
         expiresAt: z.string().optional(),
@@ -1654,7 +1806,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Legacy agency endpoint - redirects to generic endpoint
   app.get("/api/agency/rfqs", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const rfqsData = await db
         .select({
@@ -1687,7 +1847,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/agency/rfqs/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const [rfq] = await db
         .select()
@@ -1722,7 +1890,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/agency/rfqs/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const [targetRfq] = await db
         .select()
@@ -1756,7 +1932,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/agency/rfqs/:id", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      const agencyId = (req.user as any).agencyId;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
 
       const [targetRfq] = await db
         .select()

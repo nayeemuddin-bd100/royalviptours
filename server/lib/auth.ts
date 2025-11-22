@@ -171,21 +171,42 @@ export function requireTenantRole(...allowedRoles: string[]) {
   };
 }
 
-// Middleware to ensure request is from an agency contact and has agencyId
+// Helper function to get agencyId for both agency contacts and travel agent users
+export async function getAgencyIdForUser(userId: string, userType?: string, directAgencyId?: string): Promise<string | null> {
+  // If user is an agency contact, return the direct agencyId
+  if (userType === "agency" && directAgencyId) {
+    return directAgencyId;
+  }
+  
+  // If user is a regular user (travel agent), find their agency
+  const [agency] = await db
+    .select({ id: agencies.id })
+    .from(agencies)
+    .where(eq(agencies.travelAgentId, userId))
+    .limit(1);
+  
+  return agency?.id || null;
+}
+
+// Middleware to ensure request is from an agency contact OR travel agent user
 export function requireAgencyContact(req: AuthRequest, res: Response, next: NextFunction) {
   if (!req.user) {
     return res.status(401).json({ message: "Authentication required" });
   }
   
-  // Check if user is an agency contact
-  if (!(req.user as any).userType || (req.user as any).userType !== "agency") {
-    return res.status(403).json({ message: "This endpoint is only accessible to agency contacts" });
+  const userType = (req.user as any).userType;
+  const agencyId = (req.user as any).agencyId;
+  
+  // Allow if user is an agency contact with agencyId
+  if (userType === "agency" && agencyId) {
+    return next();
   }
   
-  // Verify agencyId is present
-  if (!(req.user as any).agencyId) {
-    return res.status(403).json({ message: "Agency context not found" });
+  // Allow if user is a regular user (travel agent)
+  // Travel agents will get their agency via agencies.travelAgentId in the route handlers
+  if (userType === "user" || !userType) {
+    return next();
   }
   
-  next();
+  return res.status(403).json({ message: "Access denied" });
 }
