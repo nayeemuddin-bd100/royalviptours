@@ -1,10 +1,51 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, Calendar, FileText, TrendingUp, Users, MapPin } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+
+interface UserTenant {
+  id: string;
+  tenantId: string;
+  tenantRole: string;
+  tenantName: string;
+  tenantCountryCode: string;
+  tenantStatus: string;
+}
 
 export default function HomePage() {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
+
+  // Fetch user's tenant assignments to determine role
+  const { data: userTenants } = useQuery<UserTenant[]>({
+    queryKey: ['/api/user/tenants'],
+    enabled: !!user && user.role !== 'admin',
+  });
+
+  // Redirect users to appropriate dashboard based on their role
+  useEffect(() => {
+    if (!user || !userTenants) return;
+
+    // Check if user has supplier role (transport, hotel, guide, sight)
+    const hasSupplierRole = userTenants.some((ut) => 
+      ut.tenantRole && ['transport', 'hotel', 'guide', 'sight'].includes(ut.tenantRole)
+    );
+    
+    if (hasSupplierRole) {
+      setLocation('/supplier');
+      return;
+    }
+
+    // Check if user has country manager role
+    const hasManagerRole = userTenants.some((ut) => ut.tenantRole === 'country_manager');
+    
+    if (hasManagerRole) {
+      setLocation('/country-manager/catalog');
+      return;
+    }
+  }, [user, userTenants, setLocation]);
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
