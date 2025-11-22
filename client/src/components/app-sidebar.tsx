@@ -178,16 +178,30 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={location === item.url}>
-                    <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {isLoadingTenants && user?.role !== 'admin' ? (
+                // Show loading skeleton while tenant data loads
+                <>
+                  {[1, 2, 3, 4].map((i) => (
+                    <SidebarMenuItem key={i}>
+                      <div className="flex items-center gap-2 px-2 py-2">
+                        <div className="h-4 w-4 bg-sidebar-accent rounded animate-pulse" />
+                        <div className="h-4 flex-1 bg-sidebar-accent rounded animate-pulse" />
+                      </div>
+                    </SidebarMenuItem>
+                  ))}
+                </>
+              ) : (
+                items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={location === item.url}>
+                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
