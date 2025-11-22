@@ -45,7 +45,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Load regular user
           const [user] = await db.select().from(users).where(eq(users.id, payload.userId));
           if (user) {
-            req.user = user;
+            req.user = { ...user, userType: "user" } as any;
           }
         }
       }
