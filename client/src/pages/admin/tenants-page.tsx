@@ -44,9 +44,9 @@ export default function TenantsPage() {
   });
   const { toast } = useToast();
 
-  const { data: tenants, isLoading } = useQuery<Tenant[]>({
+  const { data: tenants = [], isLoading } = useQuery<Tenant[]>({
     queryKey: ["/api/tenants"],
-    initialData: [],
+    staleTime: 0,
   });
 
   const createTenantMutation = useMutation({
