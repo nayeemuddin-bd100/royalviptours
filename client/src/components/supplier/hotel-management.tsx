@@ -56,13 +56,6 @@ export default function HotelManagement() {
     queryKey: ['/api/hotels'],
   });
 
-  // Auto-select first hotel when hotels load
-  useEffect(() => {
-    if (hotels.length > 0 && !activeHotelId) {
-      setActiveHotelId(hotels[0].id);
-    }
-  }, [hotels, activeHotelId]);
-
   // Fetch room types for selected hotel
   const { data: roomTypes = [], isLoading: roomsLoading } = useQuery<RoomType[]>({
     queryKey: ['/api/hotels', activeHotelId, 'room-types'],
@@ -372,14 +365,18 @@ export default function HotelManagement() {
             <Building2 className="h-4 w-4" />
             Hotels
           </TabsTrigger>
-          <TabsTrigger value="rooms" className="gap-2" disabled={!activeHotelId}>
-            <Bed className="h-4 w-4" />
-            Room Types
-          </TabsTrigger>
-          <TabsTrigger value="rates" className="gap-2" disabled={!activeHotelId}>
-            <DollarSign className="h-4 w-4" />
-            Rates
-          </TabsTrigger>
+          {activeHotelId && (
+            <>
+              <TabsTrigger value="rooms" className="gap-2">
+                <Bed className="h-4 w-4" />
+                Room Types
+              </TabsTrigger>
+              <TabsTrigger value="rates" className="gap-2">
+                <DollarSign className="h-4 w-4" />
+                Rates
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         {/* Hotels Tab */}
@@ -536,6 +533,22 @@ export default function HotelManagement() {
                     ))}
                   </TableBody>
                 </Table>
+              )}
+              
+              {/* Helpful message */}
+              {hotels.length > 0 && (
+                <div className="mt-4 p-4 bg-muted/50 rounded-md">
+                  <p className="text-sm text-muted-foreground">
+                    {activeHotelId ? (
+                      <>
+                        ✓ Hotel selected: <span className="font-medium text-foreground">{hotels.find(h => h.id === activeHotelId)?.name}</span>
+                        {" "}- You can now manage Room Types and Rates using the tabs above.
+                      </>
+                    ) : (
+                      "Click on any hotel row above to manage its room types and rates."
+                    )}
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>
