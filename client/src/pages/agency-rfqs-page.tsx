@@ -3,17 +3,32 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Calendar, Building, ExternalLink } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { FileText, Calendar, Building, ExternalLink, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 interface RfqData {
   id: string;
   tenantId: string;
   itineraryId: string;
-  agencyId: string;
+  agencyId: string | null;
+  userId: string | null;
   requestedByContactId: string | null;
   status: string;
   expiresAt: string | null;
@@ -25,22 +40,39 @@ interface RfqData {
   tenantName: string | null;
 }
 
+interface ItineraryData {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+}
+
 export default function AgencyRfqsPage() {
   const [location] = useLocation();
   const { toast } = useToast();
   const searchParams = new URLSearchParams(location.split('?')[1]);
   const from_itinerary = searchParams.get('from_itinerary');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedItineraryId, setSelectedItineraryId] = useState<string>("");
 
   const { data: rfqs, isLoading } = useQuery<RfqData[]>({
     queryKey: ["/api/rfqs"],
   });
 
+  const { data: itineraries } = useQuery<ItineraryData[]>({
+    queryKey: ["/api/itineraries"],
+  });
+
   const createRfqMutation = useMutation({
     mutationFn: async (itineraryId: string) => {
-      return await apiRequest("POST", "/api/rfqs", { itineraryId });
+      const res = await apiRequest("POST", "/api/rfqs", { itineraryId });
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rfqs"] });
+      setIsDialogOpen(false);
+      setSelectedItineraryId("");
       toast({
         title: "RFQ Created",
         description: "Quote request has been sent to suppliers",
@@ -55,11 +87,22 @@ export default function AgencyRfqsPage() {
     },
   });
 
+  // Auto-create RFQ when coming from itinerary page
   useEffect(() => {
-    if (from_itinerary && !createRfqMutation.isPending) {
-      createRfqMutation.mutate(from_itinerary);
+    if (from_itinerary && !createRfqMutation.isPending && rfqs !== undefined) {
+      // Check if RFQ already exists for this itinerary
+      const existingRfq = rfqs.find((rfq) => rfq.itineraryId === from_itinerary);
+      if (!existingRfq) {
+        createRfqMutation.mutate(from_itinerary);
+      }
     }
-  }, [from_itinerary]);
+  }, [from_itinerary, rfqs]);
+
+  const handleCreateRfq = () => {
+    if (selectedItineraryId) {
+      createRfqMutation.mutate(selectedItineraryId);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -76,6 +119,11 @@ export default function AgencyRfqsPage() {
     }
   };
 
+  // Filter out itineraries that already have RFQs
+  const availableItineraries = itineraries?.filter(
+    (itinerary) => !rfqs?.some((rfq) => rfq.itineraryId === itinerary.id)
+  ) || [];
+
   if (isLoading) {
     return (
       <div className="p-8">
@@ -91,11 +139,68 @@ export default function AgencyRfqsPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2" data-testid="text-page-title">RFQs (Requests for Quote)</h1>
-        <p className="text-muted-foreground">
-          View and manage quote requests sent to suppliers
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold mb-2" data-testid="text-page-title">
+            RFQs (Requests for Quote)
+          </h1>
+          <p className="text-muted-foreground">
+            View and manage quote requests sent to suppliers
+          </p>
+        </div>
+        {availableItineraries.length > 0 && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-create-rfq">
+                <Plus className="h-4 w-4 mr-2" />
+                Create RFQ
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create Quote Request</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Select Itinerary
+                  </label>
+                  <Select
+                    value={selectedItineraryId}
+                    onValueChange={setSelectedItineraryId}
+                  >
+                    <SelectTrigger data-testid="select-itinerary">
+                      <SelectValue placeholder="Choose an itinerary" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableItineraries.map((itinerary) => (
+                        <SelectItem key={itinerary.id} value={itinerary.id}>
+                          {itinerary.title} ({format(new Date(itinerary.startDate), "MMM d")} - {format(new Date(itinerary.endDate), "MMM d, yyyy")})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsDialogOpen(false)}
+                    data-testid="button-cancel-rfq"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleCreateRfq}
+                    disabled={!selectedItineraryId || createRfqMutation.isPending}
+                    data-testid="button-submit-rfq"
+                  >
+                    {createRfqMutation.isPending ? "Creating..." : "Create RFQ"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {!rfqs || rfqs.length === 0 ? (
@@ -104,11 +209,20 @@ export default function AgencyRfqsPage() {
             <FileText className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No RFQs yet</h3>
             <p className="text-muted-foreground text-center mb-4">
-              Create an itinerary first, then request quotes from suppliers
+              {availableItineraries.length > 0
+                ? "Create a quote request from one of your itineraries"
+                : "Create an itinerary first, then request quotes from suppliers"}
             </p>
-            <Link href="/itineraries">
-              <Button data-testid="button-create-itinerary">Go to Itineraries</Button>
-            </Link>
+            {availableItineraries.length > 0 ? (
+              <Button onClick={() => setIsDialogOpen(true)} data-testid="button-create-first-rfq">
+                <Plus className="h-4 w-4 mr-2" />
+                Create RFQ
+              </Button>
+            ) : (
+              <Link href="/itineraries">
+                <Button data-testid="button-go-to-itineraries">Go to Itineraries</Button>
+              </Link>
+            )}
           </CardContent>
         </Card>
       ) : (
