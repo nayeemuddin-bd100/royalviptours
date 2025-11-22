@@ -72,7 +72,7 @@ async function seed() {
   console.log("─────────────────────────");
   const adminUser = await createOrGetUser(
     "admin@example.com",
-    "admin123",
+    "password123",
     "admin",
     "Admin User",
     "System Administrator"
@@ -99,7 +99,7 @@ async function seed() {
   // Country Manager
   const jordanManager = await createOrGetUser(
     "manager.jordan@example.com",
-    "manager123",
+    "password123",
     "user",
     "Ahmed Al-Qudah",
     "Country Manager"
@@ -119,7 +119,7 @@ async function seed() {
   // Hotel Supplier
   const hotelSupplier = await createOrGetUser(
     "hotel.amman@example.com",
-    "hotel123",
+    "password123",
     "user",
     "Amman Grand Hotel",
     "Hotel Manager"
@@ -129,7 +129,7 @@ async function seed() {
   // Guide Supplier
   const guideSupplier = await createOrGetUser(
     "guide.jordan@example.com",
-    "guide123",
+    "password123",
     "user",
     "Rasha Al-Rasheed",
     "Tour Guide"
@@ -139,7 +139,7 @@ async function seed() {
   // Sight Supplier
   const sightSupplier = await createOrGetUser(
     "sight.jordan@example.com",
-    "sight123",
+    "password123",
     "user",
     "Petra Heritage Tours",
     "Attractions Manager"
@@ -153,7 +153,7 @@ async function seed() {
   // Country Manager
   const egyptManager = await createOrGetUser(
     "manager.egypt@example.com",
-    "manager123",
+    "password123",
     "user",
     "Fatima Hassan",
     "Country Manager"
@@ -163,7 +163,7 @@ async function seed() {
   // Transport Supplier
   const egyptTransport = await createOrGetUser(
     "transport.egypt@example.com",
-    "transport123",
+    "password123",
     "user",
     "Cairo Premium Transport",
     "Transport Manager"
@@ -173,7 +173,7 @@ async function seed() {
   // Hotel Supplier
   const egyptHotel = await createOrGetUser(
     "hotel.cairo@example.com",
-    "hotel123",
+    "password123",
     "user",
     "Cairo Luxury Hotels",
     "Hotel Manager"
@@ -183,7 +183,7 @@ async function seed() {
   // Guide Supplier
   const egyptGuide = await createOrGetUser(
     "guide.egypt@example.com",
-    "guide123",
+    "password123",
     "user",
     "Dr. Mohamed Abdel-Salam",
     "Senior Tour Guide"
@@ -193,7 +193,7 @@ async function seed() {
   // Sight Supplier
   const egyptSight = await createOrGetUser(
     "sight.egypt@example.com",
-    "sight123",
+    "password123",
     "user",
     "Egyptian Heritage Foundation",
     "Attractions Director"
@@ -207,22 +207,22 @@ async function seed() {
   console.log("📝 TEST CREDENTIALS CREATED:\n");
   
   console.log("🔐 GLOBAL ACCOUNTS:");
-  console.log("   Admin: admin@example.com / admin123");
+  console.log("   Admin: admin@example.com / password123");
   console.log("   Regular User: user@example.com / password123\n");
 
   console.log("🇯🇴 JORDAN TENANT:");
-  console.log("   Country Manager: manager.jordan@example.com / manager123");
+  console.log("   Country Manager: manager.jordan@example.com / password123");
   console.log("   Transport Supplier: nayeem@test.com / password123");
-  console.log("   Hotel Supplier: hotel.amman@example.com / hotel123");
-  console.log("   Guide Supplier: guide.jordan@example.com / guide123");
-  console.log("   Sight Supplier: sight.jordan@example.com / sight123\n");
+  console.log("   Hotel Supplier: hotel.amman@example.com / password123");
+  console.log("   Guide Supplier: guide.jordan@example.com / password123");
+  console.log("   Sight Supplier: sight.jordan@example.com / password123\n");
 
   console.log("🇪🇬 EGYPT TENANT:");
-  console.log("   Country Manager: manager.egypt@example.com / manager123");
-  console.log("   Transport Supplier: transport.egypt@example.com / transport123");
-  console.log("   Hotel Supplier: hotel.cairo@example.com / hotel123");
-  console.log("   Guide Supplier: guide.egypt@example.com / guide123");
-  console.log("   Sight Supplier: sight.egypt@example.com / sight123\n");
+  console.log("   Country Manager: manager.egypt@example.com / password123");
+  console.log("   Transport Supplier: transport.egypt@example.com / password123");
+  console.log("   Hotel Supplier: hotel.cairo@example.com / password123");
+  console.log("   Guide Supplier: guide.egypt@example.com / password123");
+  console.log("   Sight Supplier: sight.egypt@example.com / password123\n");
 
   console.log("📖 For detailed testing guide, see: demo-accounts.md\n");
 

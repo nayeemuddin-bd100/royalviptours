@@ -7,7 +7,7 @@ This document provides a comprehensive guide to all test accounts in the Royal V
 ### Global Accounts
 | Email | Password | Role | Purpose |
 |-------|----------|------|---------|
-| `admin@example.com` | `admin123` | Admin | Full system access, tenant management |
+| `admin@example.com` | `password123` | Admin | Full system access, tenant management |
 | `user@example.com` | `password123` | Regular User | Testing basic user features |
 
 ---
@@ -19,7 +19,7 @@ This document provides a comprehensive guide to all test accounts in the Royal V
 ### Country Manager
 ```
 Email: manager.jordan@example.com
-Password: manager123
+Password: password123
 Role: Country Manager
 Responsibilities: Manage cities, airports, event categories, amenities for Jordan
 ```
@@ -51,7 +51,7 @@ Responsibilities: Manage vehicles, routes, pricing for transport services
 ### Hotel Supplier
 ```
 Email: hotel.amman@example.com
-Password: hotel123
+Password: password123
 Role: Hotel Supplier
 Responsibilities: Manage hotel properties, room types, rates
 ```
@@ -63,7 +63,7 @@ Responsibilities: Manage hotel properties, room types, rates
 ### Guide Supplier
 ```
 Email: guide.jordan@example.com
-Password: guide123
+Password: password123
 Role: Tour Guide
 Responsibilities: Manage guide profile, rates, availability, languages, specialties
 ```
@@ -76,7 +76,7 @@ Responsibilities: Manage guide profile, rates, availability, languages, specialt
 ### Sight/Attraction Supplier
 ```
 Email: sight.jordan@example.com
-Password: sight123
+Password: password123
 Role: Sight/Attraction Manager
 Responsibilities: Manage attraction details, entry fees, operating hours
 ```
@@ -94,7 +94,7 @@ Responsibilities: Manage attraction details, entry fees, operating hours
 ### Country Manager
 ```
 Email: manager.egypt@example.com
-Password: manager123
+Password: password123
 Role: Country Manager
 Responsibilities: Manage cities, airports, event categories, amenities for Egypt
 ```
@@ -102,28 +102,28 @@ Responsibilities: Manage cities, airports, event categories, amenities for Egypt
 ### Transport Supplier
 ```
 Email: transport.egypt@example.com
-Password: transport123
+Password: password123
 Role: Transport Supplier
 ```
 
 ### Hotel Supplier
 ```
 Email: hotel.cairo@example.com
-Password: hotel123
+Password: password123
 Role: Hotel Supplier
 ```
 
 ### Guide Supplier
 ```
 Email: guide.egypt@example.com
-Password: guide123
+Password: password123
 Role: Senior Tour Guide
 ```
 
 ### Sight/Attraction Supplier
 ```
 Email: sight.egypt@example.com
-Password: sight123
+Password: password123
 Role: Attractions Manager
 ```
 
