@@ -3836,32 +3836,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get agency ID for both agency contacts and travel agent users
       const agencyId = await getAgencyIdForUser(userId, userType, directAgencyId);
 
-      let userQuotes;
-
       if (agencyId) {
         // User has an agency - get quotes for RFQs belonging to their agency
-        userQuotes = await db
-          .select()
+        const userQuotes = await db
+          .select({ quote: quotes })
           .from(quotes)
-          .leftJoin(rfqs, eq(quotes.rfqId, rfqs.id))
+          .innerJoin(rfqs, eq(quotes.rfqId, rfqs.id))
           .where(eq(rfqs.agencyId, agencyId))
           .orderBy(desc(quotes.createdAt));
         
         // Map to return just the quote data
-        const quotesData = userQuotes.map(row => row.quotes);
+        const quotesData = userQuotes.map(row => row.quote);
         res.json(quotesData);
       } else {
         // Regular user without agency - get quotes for their own itineraries
-        userQuotes = await db
-          .select()
+        const userQuotes = await db
+          .select({ quote: quotes })
           .from(quotes)
-          .leftJoin(rfqs, eq(quotes.rfqId, rfqs.id))
-          .leftJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
+          .innerJoin(rfqs, eq(quotes.rfqId, rfqs.id))
+          .innerJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
           .where(eq(itineraries.createdByUserId, userId))
           .orderBy(desc(quotes.createdAt));
         
         // Map to return just the quote data
-        const quotesData = userQuotes.map(row => row.quotes);
+        const quotesData = userQuotes.map(row => row.quote);
         res.json(quotesData);
       }
     } catch (error: any) {
