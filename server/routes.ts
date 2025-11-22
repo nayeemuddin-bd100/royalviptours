@@ -535,7 +535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         region: z.string().optional(),
         postalCode: z.string().optional(),
         country: z.string().min(1),
-        googleMapsUrl: z.string().url().optional(),
+        googleMapsUrl: z.union([z.string().url(), z.string().max(0)]).optional(),
       }).parse(req.body);
 
       const [newAddress] = await db
@@ -583,7 +583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         region: z.string().optional(),
         postalCode: z.string().optional(),
         country: z.string().min(1).optional(),
-        googleMapsUrl: z.string().url().optional(),
+        googleMapsUrl: z.union([z.string().url(), z.string().max(0)]).optional(),
       }).parse(req.body);
 
       const [updatedAddress] = await db
