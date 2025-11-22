@@ -37,8 +37,9 @@ export default function AgencyItineraryNewPage() {
     notes: "",
   });
 
-  const { data: tenants } = useQuery<Tenant[]>({
+  const { data: tenants = [] } = useQuery<Tenant[]>({
     queryKey: ["/api/tenants"],
+    staleTime: 0,
   });
 
   const createMutation = useMutation({
