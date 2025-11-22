@@ -216,10 +216,12 @@ export function parseErrorMessage(error: Error): string {
   const message = error.message;
   
   // Try to extract JSON error message from format: "500: {\"message\":\"...\"}"
-  const jsonMatch = message.match(/^\d+:\s*(.+)$/);
+  const jsonMatch = message.match(/^(\d+):\s*(.+)$/);
   if (jsonMatch) {
+    const statusCode = jsonMatch[1];
+    const jsonStr = jsonMatch[2];
+    
     try {
-      const jsonStr = jsonMatch[1];
       const parsed = JSON.parse(jsonStr);
       
       // If it's a validation error with issues array
@@ -258,16 +260,31 @@ export function parseErrorMessage(error: Error): string {
         return `${fieldName}: ${parsed.message}`;
       }
     } catch {
-      // If JSON parsing fails, try to extract just the message field
-      const messageMatch = message.match(/"message"\s*:\s*"([^"]+)"/);
+      // If JSON parsing fails, check if it's an HTML response or other non-JSON
+      if (jsonStr.trim().startsWith('<')) {
+        // HTML error page
+        return `Server error (${statusCode}). Please try again or contact support.`;
+      }
+      
+      // Try to extract just the message field
+      const messageMatch = jsonStr.match(/"message"\s*:\s*"([^"]+)"/);
       if (messageMatch) {
         return messageMatch[1];
       }
+      
+      // Return generic error based on status code
+      if (statusCode === '400') return 'Invalid request. Please check your input.';
+      if (statusCode === '401') return 'Authentication required. Please log in.';
+      if (statusCode === '403') return 'Permission denied. You do not have access to this resource.';
+      if (statusCode === '404') return 'Resource not found.';
+      if (statusCode === '500') return 'Internal server error. Please try again.';
+      
+      return `Error (${statusCode}). Please try again.`;
     }
   }
   
   // Fallback to original message
-  return message;
+  return message || 'An unexpected error occurred. Please try again.';
 }
 
 export const queryClient = new QueryClient({

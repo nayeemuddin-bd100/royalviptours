@@ -143,8 +143,7 @@ export default function HotelManagement() {
         : `/api/hotels/${activeHotelId}/room-types`;
       const method = selectedRoom ? 'PATCH' : 'POST';
       const res = await apiRequest(method, endpoint, {
-        ...data,
-        tenantId: "",
+        name: data.name,
         occupancyMin: Number(data.occupancyMin),
         occupancyMax: Number(data.occupancyMax),
       });
@@ -187,8 +186,12 @@ export default function HotelManagement() {
         : `/api/hotels/${activeHotelId}/rates`;
       const method = selectedRate ? 'PATCH' : 'POST';
       const res = await apiRequest(method, endpoint, {
-        ...data,
-        tenantId: "",
+        roomTypeId: data.roomTypeId || undefined,
+        mealPlanId: data.mealPlanId || undefined,
+        season: data.season || "base",
+        currency: data.currency || "USD",
+        pricePerNight: parseFloat(data.pricePerNight),
+        notes: data.notes || null,
       });
       return await res.json();
     },
@@ -285,6 +288,73 @@ export default function HotelManagement() {
       notes: rate.notes || "",
     });
     setIsRateDialogOpen(true);
+  };
+
+  const handleSubmitHotel = () => {
+    if (!hotelForm.name.trim() || !hotelForm.address.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Hotel name and address are required",
+        variant: "destructive",
+      });
+      return;
+    }
+    hotelMutation.mutate(hotelForm);
+  };
+
+  const handleSubmitRoom = () => {
+    if (!roomForm.name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Room name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const minOccupancy = Number(roomForm.occupancyMin.trim());
+    const maxOccupancy = Number(roomForm.occupancyMax.trim());
+    
+    if (!roomForm.occupancyMin.trim() || !roomForm.occupancyMax.trim() || 
+        isNaN(minOccupancy) || isNaN(maxOccupancy) || 
+        minOccupancy <= 0 || maxOccupancy <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Occupancy minimum and maximum must be valid positive numbers",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (minOccupancy > maxOccupancy) {
+      toast({
+        title: "Validation Error",
+        description: "Minimum occupancy cannot be greater than maximum",
+        variant: "destructive",
+      });
+      return;
+    }
+    roomMutation.mutate(roomForm);
+  };
+
+  const handleSubmitRate = () => {
+    if (!rateForm.roomTypeId || !rateForm.mealPlanId) {
+      toast({
+        title: "Validation Error",
+        description: "Room type and meal plan are required",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!rateForm.pricePerNight || isNaN(parseFloat(rateForm.pricePerNight))) {
+      toast({
+        title: "Validation Error",
+        description: "Valid price per night is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    rateMutation.mutate(rateForm);
   };
 
   return (
@@ -393,7 +463,7 @@ export default function HotelManagement() {
                       Cancel
                     </Button>
                     <Button
-                      onClick={() => hotelMutation.mutate(hotelForm)}
+                      onClick={handleSubmitHotel}
                       disabled={!hotelForm.name || !hotelForm.address || hotelMutation.isPending}
                       data-testid="button-save-hotel"
                     >
@@ -528,7 +598,7 @@ export default function HotelManagement() {
                         Cancel
                       </Button>
                       <Button
-                        onClick={() => roomMutation.mutate(roomForm)}
+                        onClick={handleSubmitRoom}
                         disabled={!roomForm.name || !roomForm.occupancyMin || !roomForm.occupancyMax || roomMutation.isPending}
                         data-testid="button-save-room"
                       >
@@ -676,7 +746,7 @@ export default function HotelManagement() {
                         Cancel
                       </Button>
                       <Button
-                        onClick={() => rateMutation.mutate(rateForm)}
+                        onClick={handleSubmitRate}
                         disabled={!rateForm.roomTypeId || !rateForm.mealPlanId || !rateForm.pricePerNight || rateMutation.isPending}
                         data-testid="button-save-rate"
                       >
