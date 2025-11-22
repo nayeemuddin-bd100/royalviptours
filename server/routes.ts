@@ -1603,6 +1603,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generic RFQ detail endpoint - supports both agency contacts and regular users
+  app.get("/api/rfqs/:id", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const user = req.user as any;
+      const userId = user.id;
+      const agencyId = user.agencyId;
+
+      // Get the RFQ
+      const [rfq] = await db
+        .select()
+        .from(rfqs)
+        .where(eq(rfqs.id, id));
+
+      if (!rfq) {
+        return res.status(404).json({ message: "RFQ not found" });
+      }
+
+      // Verify user has access based on itinerary ownership
+      const [itinerary] = await db
+        .select()
+        .from(itineraries)
+        .where(eq(itineraries.id, rfq.itineraryId));
+
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      // Check ownership: either agency contact OR regular user who created the itinerary
+      const isOwner = (agencyId && itinerary.agencyId === agencyId) || 
+                      (!agencyId && itinerary.createdByUserId === userId);
+
+      if (!isOwner) {
+        return res.status(403).json({ message: "Access denied: You do not own this RFQ" });
+      }
+
+      // Get all segments for this RFQ
+      const segments = await db
+        .select()
+        .from(rfqSegments)
+        .where(eq(rfqSegments.rfqId, id));
+
+      res.json({ ...rfq, segments, itinerary });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Legacy agency endpoint - redirects to generic endpoint
   app.get("/api/agency/rfqs", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
@@ -2805,10 +2853,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(itineraries)
         .where(eq(itineraries.id, rfq.itineraryId));
 
-      const [agency] = await db
-        .select()
-        .from(agencies)
-        .where(eq(agencies.id, rfq.agencyId));
+      let agency = null;
+      if (rfq.agencyId) {
+        const [agencyData] = await db
+          .select()
+          .from(agencies)
+          .where(eq(agencies.id, rfq.agencyId));
+        agency = agencyData;
+      }
 
       res.json({ ...segment, rfq, itinerary, agency });
     } catch (error: any) {

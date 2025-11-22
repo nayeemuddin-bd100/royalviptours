@@ -52,7 +52,7 @@ export default function AgencyRfqDetailPage() {
   const { toast } = useToast();
 
   const { data: rfq, isLoading, error } = useQuery<RfqDetail>({
-    queryKey: ["/api/agency/rfqs", rfqId],
+    queryKey: ["/api/rfqs", rfqId],
     enabled: !!rfqId,
   });
 
@@ -74,7 +74,7 @@ export default function AgencyRfqDetailPage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agency/rfqs", rfqId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rfqs", rfqId] });
       toast({
         title: "Quote Updated",
         description: "Quote status has been updated successfully.",
