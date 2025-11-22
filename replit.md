@@ -20,6 +20,12 @@ Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline gro
 - **Frontend:** Hotel rate creation now shows meal plans in dropdown (Room Type also uses dropdown)
 - **Bug Fix:** Removed `parseFloat()` conversion for `pricePerNight` to maintain string type for backend precision
 
+### Auth Flow Improvements
+- **Bug Fix:** Fixed sidebar menu showing incorrect items after login
+  - Added automatic page reload after successful login/registration
+  - Ensures all auth state and tenant data is fresh on page load
+  - Sidebar now correctly displays supplier/agency menus immediately after login
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

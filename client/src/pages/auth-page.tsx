@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -18,11 +18,12 @@ export default function AuthPage() {
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerName, setRegisterName] = useState("");
 
-  // Redirect if already logged in (after hooks to avoid violating rules of hooks)
-  if (user) {
-    setLocation("/");
-    return null;
-  }
+  // Redirect if already logged in - using useEffect to avoid setting state during render
+  useEffect(() => {
+    if (user) {
+      setLocation("/");
+    }
+  }, [user, setLocation]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

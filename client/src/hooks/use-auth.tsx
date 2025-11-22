@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await apiRequest("POST", endpoint, creds);
       return await res.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: async (data: any) => {
       if (data.accessToken) {
         setAuthToken(data.accessToken);
       }
@@ -100,6 +100,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         title: "Welcome back!",
         description: data.userType === "agency" ? `Welcome, ${user.name}` : "You've successfully logged in.",
       });
+      
+      // Hard refresh to ensure sidebar and all components reflect the new auth state
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 500);
     },
     onError: (error: Error) => {
       toast({
@@ -128,6 +133,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         title: "Account created!",
         description: "Welcome to Royal VIP Tours.",
       });
+      
+      // Hard refresh to ensure sidebar and all components reflect the new auth state
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 500);
     },
     onError: (error: Error) => {
       toast({
