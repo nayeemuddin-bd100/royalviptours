@@ -21,11 +21,17 @@ type User = {
   createdAt: string;
 };
 
+type Tenant = {
+  id: string;
+  name: string;
+  countryCode: string;
+};
+
 type UserTenant = {
   id: string;
   userId: string;
   tenantId: string;
-  role: string;
+  role: string | null;
   tenant: {
     id: string;
     name: string;
@@ -39,7 +45,9 @@ export default function UsersPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState("user");
+  const [accountType, setAccountType] = useState("travel_agent");
+  const [selectedTenant, setSelectedTenant] = useState("");
+  const [supplierType, setSupplierType] = useState("transport");
 
   const { data: users, isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
