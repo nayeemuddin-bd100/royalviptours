@@ -2289,6 +2289,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // If supplier, create their company automatically
+      if (accountType === "supplier" && supplierType) {
+        if (supplierType === "transport") {
+          await db.insert(transportCompanies).values({
+            tenantId: tenantId,
+            ownerId: user.id,
+            name: `${name}'s Transport Company`,
+            email: email,
+          });
+        } else if (supplierType === "hotel") {
+          await db.insert(hotels).values({
+            tenantId: tenantId,
+            ownerId: user.id,
+            name: `${name}'s Hotel`,
+            address: "To be updated",
+            email: email,
+          });
+        } else if (supplierType === "guide") {
+          await db.insert(tourGuides).values({
+            tenantId: tenantId,
+            ownerId: user.id,
+            name: name,
+            email: email,
+            workScope: "city",
+          });
+        } else if (supplierType === "sight") {
+          await db.insert(sights).values({
+            tenantId: tenantId,
+            ownerId: user.id,
+            name: `${name}'s Sight`,
+            email: email,
+          });
+        }
+      }
+
       // Log user creation with role
       await logAudit(req, {
         action: "user_created",
