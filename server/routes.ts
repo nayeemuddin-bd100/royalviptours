@@ -2694,7 +2694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .from(rfqSegments)
               .innerJoin(rfqs, eq(rfqSegments.rfqId, rfqs.id))
               .innerJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
-              .innerJoin(agencies, eq(rfqs.agencyId, agencies.id))
+              .leftJoin(agencies, eq(rfqs.agencyId, agencies.id))
               .where(and(
                 inArray(rfqSegments.supplierId, companyIds),
                 eq(rfqSegments.supplierType, "transport")
@@ -2725,7 +2725,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .from(rfqSegments)
               .innerJoin(rfqs, eq(rfqSegments.rfqId, rfqs.id))
               .innerJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
-              .innerJoin(agencies, eq(rfqs.agencyId, agencies.id))
+              .leftJoin(agencies, eq(rfqs.agencyId, agencies.id))
               .where(and(
                 inArray(rfqSegments.supplierId, hotelIds),
                 eq(rfqSegments.supplierType, "hotel")
@@ -2756,7 +2756,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .from(rfqSegments)
               .innerJoin(rfqs, eq(rfqSegments.rfqId, rfqs.id))
               .innerJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
-              .innerJoin(agencies, eq(rfqs.agencyId, agencies.id))
+              .leftJoin(agencies, eq(rfqs.agencyId, agencies.id))
               .where(and(
                 inArray(rfqSegments.supplierId, guideIds),
                 eq(rfqSegments.supplierType, "guide")
@@ -2787,7 +2787,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .from(rfqSegments)
               .innerJoin(rfqs, eq(rfqSegments.rfqId, rfqs.id))
               .innerJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
-              .innerJoin(agencies, eq(rfqs.agencyId, agencies.id))
+              .leftJoin(agencies, eq(rfqs.agencyId, agencies.id))
               .where(and(
                 inArray(rfqSegments.supplierId, sightIds),
                 eq(rfqSegments.supplierType, "sight")
