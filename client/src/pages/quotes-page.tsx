@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Download, Eye, Calendar } from "lucide-react";
+import { FileText } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -56,7 +55,6 @@ export default function QuotesPage() {
                   <TableHead>Currency</TableHead>
                   <TableHead>Valid Until</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -73,18 +71,6 @@ export default function QuotesPage() {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {format(new Date(quote.createdAt), "MMM d, yyyy")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="sm" data-testid={`button-view-${quote.id}`}>
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
-                        </Button>
-                        <Button variant="ghost" size="sm" data-testid={`button-download-${quote.id}`}>
-                          <Download className="h-4 w-4 mr-1" />
-                          PDF
-                        </Button>
-                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
