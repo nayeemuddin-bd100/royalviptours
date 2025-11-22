@@ -128,14 +128,14 @@ export function AppSidebar() {
       
       // Check if user has supplier role (transport, hotel, guide, sight)
       const hasSupplierRole = userTenants.some((ut) => 
-        ['transport', 'hotel', 'guide', 'sight'].includes(ut.tenantRole)
+        ut.tenantRole && ['transport', 'hotel', 'guide', 'sight'].includes(ut.tenantRole)
       );
       if (hasSupplierRole) {
         return supplierItems;
       }
     }
     
-    // For all regular users (non-suppliers),
+    // For all regular users / travel agents (non-suppliers),
     // show agency navigation (Dashboard, My Itineraries, RFQs, Quotes, Account)
     // This allows users to create itineraries and manage travel requests
     return agencyItems;

@@ -62,6 +62,26 @@ async function assignTenantRole(userId: string, tenantId: string, role: "country
   }
 }
 
+async function grantTenantAccess(userId: string, tenantId: string) {
+  const [existing] = await db.select().from(userTenants).where(
+    and(
+      eq(userTenants.userId, userId),
+      eq(userTenants.tenantId, tenantId)
+    )
+  );
+  
+  if (!existing) {
+    console.log(`    Granting tenant access (no role)`);
+    await db.insert(userTenants).values({
+      userId: userId,
+      tenantId: tenantId,
+      tenantRole: null
+    });
+  } else {
+    console.log(`    Tenant access already granted`);
+  }
+}
+
 async function seed() {
   console.log("╔════════════════════════════════════════════════════════════════╗");
   console.log("║            ROYAL VIP TOURS - DATABASE SEED SCRIPT               ║");
