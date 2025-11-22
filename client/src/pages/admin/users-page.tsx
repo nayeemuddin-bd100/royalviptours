@@ -315,9 +315,14 @@ export default function UsersPage() {
                               {tenants.map((ut) => (
                                 <Badge key={ut.id} variant="outline" className="text-xs">
                                   {ut.tenant.name}
-                                  {ut.role !== user.role && (
+                                  {ut.role && ut.role !== user.role && (
                                     <span className="ml-1 text-muted-foreground">
                                       ({ut.role.replace(/_/g, " ")})
+                                    </span>
+                                  )}
+                                  {!ut.role && (
+                                    <span className="ml-1 text-muted-foreground">
+                                      (travel agent)
                                     </span>
                                   )}
                                 </Badge>
