@@ -2245,6 +2245,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tenantRole: assignedRole as any,
       });
 
+      // If travel agent, create an agency for them
+      if (accountType === "travel_agent") {
+        const tenantData = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+        const tenantName = tenantData.length > 0 ? tenantData[0].name : "Global";
+        
+        await db.insert(agencies).values({
+          legalName: `${name}'s Agency`,
+          country: tenantName,
+          travelAgentId: user.id,
+        });
+      }
+
       // Log user creation with role
       await logAudit(req, {
         action: "user_created",
