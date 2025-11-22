@@ -33,21 +33,40 @@ type Fleet = {
   imageUrl: string | null;
 };
 
+type TransportCompany = {
+  id: string;
+  name: string;
+  description: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+};
+
 export default function TransportManagement() {
   const { toast } = useToast();
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
   const [isFleetDialogOpen, setIsFleetDialogOpen] = useState(false);
+  const [isCompanyDialogOpen, setIsCompanyDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<TransportProduct | null>(null);
   const [selectedFleet, setSelectedFleet] = useState<Fleet | null>(null);
+
+  // Fetch transport company
+  const { data: companies = [], isLoading: companiesLoading } = useQuery<TransportCompany[]>({
+    queryKey: ['/api/transport/companies'],
+  });
+
+  const myCompany = companies.length > 0 ? companies[0] : null;
 
   // Fetch transport products (routes)
   const { data: products = [], isLoading: productsLoading } = useQuery<TransportProduct[]>({
     queryKey: ['/api/supplier/transport/products'],
+    enabled: !!myCompany,
   });
 
   // Fetch fleet (buses)
   const { data: fleet = [], isLoading: fleetLoading } = useQuery<Fleet[]>({
     queryKey: ['/api/supplier/transport/fleet'],
+    enabled: !!myCompany,
   });
 
   // Product form state
@@ -67,6 +86,15 @@ export default function TransportManagement() {
     vehicleType: "",
     size: "",
     features: "",
+  });
+
+  // Company form state
+  const [companyForm, setCompanyForm] = useState({
+    name: "",
+    description: "",
+    phone: "",
+    email: "",
+    address: "",
   });
 
   // Create/Update product mutation
@@ -155,6 +183,36 @@ export default function TransportManagement() {
     },
   });
 
+  // Create company mutation
+  const companyMutation = useMutation({
+    mutationFn: async (data: typeof companyForm) => {
+      const res = await apiRequest('POST', '/api/transport/companies', data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/transport/companies'] });
+      setIsCompanyDialogOpen(false);
+      setCompanyForm({
+        name: "",
+        description: "",
+        phone: "",
+        email: "",
+        address: "",
+      });
+      toast({
+        title: "Company created",
+        description: "Your transport company has been successfully created",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const resetProductForm = () => {
     setProductForm({
       name: "",
@@ -212,6 +270,84 @@ export default function TransportManagement() {
     resetFleetForm();
     setIsFleetDialogOpen(true);
   };
+
+  if (companiesLoading) {
+    return <div className="p-6">Loading...</div>;
+  }
+
+  // Show company setup if no company exists
+  if (!myCompany) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Set Up Your Transport Company</CardTitle>
+          <CardDescription>
+            Create your transport company profile to start managing routes and fleet vehicles
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="company-name">Company Name *</Label>
+            <Input
+              id="company-name"
+              value={companyForm.name}
+              onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })}
+              placeholder="Enter company name"
+              data-testid="input-company-name"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="company-description">Description</Label>
+            <Input
+              id="company-description"
+              value={companyForm.description}
+              onChange={(e) => setCompanyForm({ ...companyForm, description: e.target.value })}
+              placeholder="Brief description of your services"
+              data-testid="input-company-description"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="company-phone">Phone</Label>
+            <Input
+              id="company-phone"
+              value={companyForm.phone}
+              onChange={(e) => setCompanyForm({ ...companyForm, phone: e.target.value })}
+              placeholder="+1 234 567 8900"
+              data-testid="input-company-phone"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="company-email">Email</Label>
+            <Input
+              id="company-email"
+              type="email"
+              value={companyForm.email}
+              onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })}
+              placeholder="contact@company.com"
+              data-testid="input-company-email"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="company-address">Address</Label>
+            <Input
+              id="company-address"
+              value={companyForm.address}
+              onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })}
+              placeholder="Business address"
+              data-testid="input-company-address"
+            />
+          </div>
+          <Button
+            onClick={() => companyMutation.mutate(companyForm)}
+            disabled={!companyForm.name || companyMutation.isPending}
+            data-testid="button-create-company"
+          >
+            {companyMutation.isPending ? "Creating..." : "Create Company"}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
