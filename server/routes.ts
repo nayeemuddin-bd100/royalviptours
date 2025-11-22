@@ -1370,8 +1370,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).parse(req.body);
 
       // Critical security check: Verify itinerary belongs to THIS user/agency
+      // For users with agencies, check both agency ownership AND user ownership (for legacy itineraries)
       const whereCondition = agencyId
-        ? and(eq(itineraries.id, itineraryId), eq(itineraries.agencyId, agencyId))
+        ? and(
+            eq(itineraries.id, itineraryId),
+            or(
+              eq(itineraries.agencyId, agencyId),
+              eq(itineraries.createdByUserId, userId)
+            )
+          )
         : and(eq(itineraries.id, itineraryId), eq(itineraries.createdByUserId, userId));
 
       const [itinerary] = await db
@@ -1381,6 +1388,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!itinerary) {
         return res.status(403).json({ message: "Access denied: Itinerary not found or does not belong to you" });
+      }
+      
+      // If itinerary doesn't have agency_id but user has one, update it
+      if (agencyId && !itinerary.agencyId) {
+        await db
+          .update(itineraries)
+          .set({ agencyId: agencyId })
+          .where(eq(itineraries.id, itineraryId));
       }
 
       // Check for existing RFQ for this itinerary
