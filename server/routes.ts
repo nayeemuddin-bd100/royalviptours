@@ -755,6 +755,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/itineraries", requireAuth, async (req: AuthRequest, res, next) => {
     try {
       const userId = req.user!.id;
+      const user = req.user as any;
 
       const itineraryData = z.object({
         tenantId: z.string(),
@@ -784,13 +785,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const end = new Date(itineraryData.endDate);
       const dayCount = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-      // Create itinerary (user-owned, no agencyId)
+      // Get agency ID if user is a travel agent
+      const agencyId = await getAgencyIdForUser(userId, user.userType, user.agencyId);
+
+      // Create itinerary with agencyId if user is a travel agent
       const [newItinerary] = await db
         .insert(itineraries)
         .values({
           ...itineraryData,
           createdByUserId: userId,
-          agencyId: null,
+          agencyId: agencyId || null,
           paxChildren: itineraryData.paxChildren || 0,
         })
         .returning();
