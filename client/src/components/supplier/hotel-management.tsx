@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Edit, Trash2, Building2, Bed, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, parseErrorMessage } from "@/lib/queryClient";
 
 type Hotel = {
   id: string;
@@ -119,7 +119,7 @@ export default function HotelManagement() {
     onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: parseErrorMessage(error),
         variant: "destructive",
       });
     },
@@ -163,7 +163,7 @@ export default function HotelManagement() {
     onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: parseErrorMessage(error),
         variant: "destructive",
       });
     },
@@ -205,7 +205,7 @@ export default function HotelManagement() {
     onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: parseErrorMessage(error),
         variant: "destructive",
       });
     },

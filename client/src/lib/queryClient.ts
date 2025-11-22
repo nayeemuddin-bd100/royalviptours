@@ -212,6 +212,64 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+export function parseErrorMessage(error: Error): string {
+  const message = error.message;
+  
+  // Try to extract JSON error message from format: "500: {\"message\":\"...\"}"
+  const jsonMatch = message.match(/^\d+:\s*(.+)$/);
+  if (jsonMatch) {
+    try {
+      const jsonStr = jsonMatch[1];
+      const parsed = JSON.parse(jsonStr);
+      
+      // If it's a validation error with issues array
+      if (parsed.issues && Array.isArray(parsed.issues)) {
+        return parsed.issues.map((issue: any) => 
+          `${issue.path.join('.')}: ${issue.message}`
+        ).join(', ');
+      }
+      
+      // If it's a Zod error with message containing validation details
+      if (parsed.message && typeof parsed.message === 'string') {
+        try {
+          const innerParsed = JSON.parse(parsed.message);
+          if (innerParsed.path && innerParsed.message) {
+            const fieldName = Array.isArray(innerParsed.path) 
+              ? innerParsed.path.join('.') 
+              : innerParsed.path;
+            return `${fieldName}: ${innerParsed.message}`;
+          }
+        } catch {
+          // If inner parsing fails, return the message as is
+          return parsed.message;
+        }
+      }
+      
+      // If it has a simple message field
+      if (parsed.message) {
+        return parsed.message;
+      }
+      
+      // If it's a validation error object directly
+      if (parsed.path && parsed.message) {
+        const fieldName = Array.isArray(parsed.path) 
+          ? parsed.path.join('.') 
+          : parsed.path;
+        return `${fieldName}: ${parsed.message}`;
+      }
+    } catch {
+      // If JSON parsing fails, try to extract just the message field
+      const messageMatch = message.match(/"message"\s*:\s*"([^"]+)"/);
+      if (messageMatch) {
+        return messageMatch[1];
+      }
+    }
+  }
+  
+  // Fallback to original message
+  return message;
+}
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
