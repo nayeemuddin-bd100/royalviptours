@@ -37,17 +37,8 @@ export default function AgencyItineraryNewPage() {
     notes: "",
   });
 
-  const { data: tenants = [] } = useQuery<Tenant[]>({
+  const { data: tenants = [], isLoading: isLoadingTenants } = useQuery<Tenant[]>({
     queryKey: ["/api/tenants"],
-    queryFn: async () => {
-      const res = await fetch("/api/tenants", {
-        headers: {
-          "Authorization": `Bearer ${localStorage.getItem("auth_token") || ""}`,
-        },
-      });
-      if (!res.ok) throw new Error("Failed to fetch tenants");
-      return res.json();
-    },
   });
 
   const createMutation = useMutation({
@@ -130,11 +121,17 @@ export default function AgencyItineraryNewPage() {
                   <SelectValue placeholder="Select destination" />
                 </SelectTrigger>
                 <SelectContent>
-                  {tenants?.map((tenant) => (
-                    <SelectItem key={tenant.id} value={tenant.id}>
-                      {tenant.name} ({tenant.countryCode})
-                    </SelectItem>
-                  ))}
+                  {isLoadingTenants ? (
+                    <div className="p-2 text-sm text-muted-foreground">Loading countries...</div>
+                  ) : tenants && tenants.length > 0 ? (
+                    tenants.map((tenant) => (
+                      <SelectItem key={tenant.id} value={tenant.id} data-testid={`option-country-${tenant.countryCode}`}>
+                        {tenant.name} ({tenant.countryCode})
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="p-2 text-sm text-muted-foreground">No countries available</div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
