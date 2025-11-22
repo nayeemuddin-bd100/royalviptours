@@ -4,6 +4,22 @@
 
 Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline ground operations and travel quotations within the B2B travel sector. It connects local suppliers (transport, hotels, guides, sights) with global travel agencies to facilitate complex itinerary creation and accurate quote generation via an RFQ workflow. The platform acts as a productivity tool for information management, fostering efficient collaboration between country managers and travel agencies.
 
+## Recent Changes (Nov 22, 2025)
+
+### Meal Plans Implementation
+- **Schema Update:** Changed meal plans from hotel-specific to tenant-wide static data
+  - Removed `hotelId` from meal plans table
+  - Added unique constraint on `(tenantId, code)` instead of `(hotelId, code)`
+- **Seed Data:** Created 5 standard meal plans for each tenant:
+  - **RO** - Room Only (no meals)
+  - **BB** - Bed & Breakfast  
+  - **HB** - Half Board (breakfast + dinner)
+  - **FB** - Full Board (all meals)
+  - **AI** - All Inclusive (meals + drinks)
+- **Backend:** Added `/api/meal-plans` endpoint to fetch tenant meal plans
+- **Frontend:** Hotel rate creation now shows meal plans in dropdown (Room Type also uses dropdown)
+- **Bug Fix:** Removed `parseFloat()` conversion for `pricePerNight` to maintain string type for backend precision
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

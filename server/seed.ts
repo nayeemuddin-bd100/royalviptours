@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, tenants, userTenants } from "@shared/schema";
+import { users, tenants, userTenants, mealPlans } from "@shared/schema";
 import { hashPassword } from "./lib/auth";
 import { eq, and } from "drizzle-orm";
 
@@ -82,6 +82,36 @@ async function grantTenantAccess(userId: string, tenantId: string) {
   }
 }
 
+async function createMealPlansForTenant(tenantId: string) {
+  const mealPlanData = [
+    { code: "RO" as const, description: "Room Only - No meals included" },
+    { code: "BB" as const, description: "Bed & Breakfast - Includes breakfast" },
+    { code: "HB" as const, description: "Half Board - Includes breakfast and dinner" },
+    { code: "FB" as const, description: "Full Board - Includes breakfast, lunch, and dinner" },
+    { code: "AI" as const, description: "All Inclusive - All meals, snacks, and drinks included" }
+  ];
+
+  for (const plan of mealPlanData) {
+    const [existing] = await db.select().from(mealPlans).where(
+      and(
+        eq(mealPlans.tenantId, tenantId),
+        eq(mealPlans.code, plan.code)
+      )
+    );
+
+    if (!existing) {
+      console.log(`    Creating meal plan: ${plan.code} - ${plan.description}`);
+      await db.insert(mealPlans).values({
+        tenantId,
+        code: plan.code,
+        description: plan.description
+      });
+    } else {
+      console.log(`    Meal plan already exists: ${plan.code}`);
+    }
+  }
+}
+
 async function seed() {
   console.log("╔════════════════════════════════════════════════════════════════╗");
   console.log("║            ROYAL VIP TOURS - DATABASE SEED SCRIPT               ║");
@@ -117,6 +147,14 @@ async function seed() {
   console.log("─────────────────────────");
   await grantTenantAccess(regularUser.id, jordanTenant.id);
   await grantTenantAccess(regularUser.id, egyptTenant.id);
+
+  // ===== CREATE MEAL PLANS =====
+  console.log("\n📌 Creating Meal Plans");
+  console.log("─────────────────────────");
+  console.log("  Jordan Tenant:");
+  await createMealPlansForTenant(jordanTenant.id);
+  console.log("  Egypt Tenant:");
+  await createMealPlansForTenant(egyptTenant.id);
 
   // ===== JORDAN TENANT - SUPPLIERS & MANAGERS =====
   console.log("\n📌 Jordan Tenant - Users & Roles");

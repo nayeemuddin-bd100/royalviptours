@@ -316,13 +316,12 @@ export const roomTypes = pgTable("room_types", {
 export const mealPlans = pgTable("meal_plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-  hotelId: varchar("hotel_id").notNull().references(() => hotels.id, { onDelete: "cascade" }),
   code: mealPlanEnum("code").notNull(),
   description: text("description"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
-  uniqueHotelMealPlan: unique().on(table.hotelId, table.code)
+  uniqueTenantMealPlan: unique().on(table.tenantId, table.code)
 }));
 
 export const hotelRates = pgTable("hotel_rates", {

@@ -31,6 +31,12 @@ type RoomType = {
   occupancyMax: number;
 };
 
+type MealPlan = {
+  id: string;
+  code: string;
+  description: string | null;
+};
+
 type HotelRate = {
   id: string;
   hotelId: string;
@@ -67,6 +73,11 @@ export default function HotelManagement() {
   const { data: rates = [], isLoading: ratesLoading } = useQuery<HotelRate[]>({
     queryKey: ['/api/hotels', activeHotelId, 'rates'],
     enabled: !!activeHotelId,
+  });
+
+  // Fetch meal plans (tenant-wide)
+  const { data: mealPlans = [], isLoading: mealPlansLoading } = useQuery<MealPlan[]>({
+    queryKey: ['/api/meal-plans'],
   });
 
   // Hotel form state
@@ -726,15 +737,21 @@ export default function HotelManagement() {
                       </div>
                       <div className="grid gap-2">
                         <Label>Meal Plan *</Label>
-                        <p className="text-xs text-muted-foreground mb-2">
-                          Note: You'll need to create meal plans for this hotel first. For now, enter a meal plan ID manually.
-                        </p>
-                        <Input
+                        <Select
                           value={rateForm.mealPlanId}
-                          onChange={(e) => setRateForm({ ...rateForm, mealPlanId: e.target.value })}
-                          placeholder="Meal Plan ID (temporary)"
-                          data-testid="input-rate-meal-plan"
-                        />
+                          onValueChange={(value) => setRateForm({ ...rateForm, mealPlanId: value })}
+                        >
+                          <SelectTrigger data-testid="select-rate-meal-plan">
+                            <SelectValue placeholder="Select meal plan" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {mealPlans.map((plan) => (
+                              <SelectItem key={plan.id} value={plan.id}>
+                                {plan.code} - {plan.description}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">

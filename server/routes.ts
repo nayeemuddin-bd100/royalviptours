@@ -3491,6 +3491,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/meal-plans", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
+    try {
+      const plans = await db.select().from(mealPlans)
+        .where(eq(mealPlans.tenantId, req.tenantContext!.tenantId));
+      
+      res.json(plans);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.get("/api/hotels/:id/rates", requireAuth, requireTenantRole("hotel"), async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
