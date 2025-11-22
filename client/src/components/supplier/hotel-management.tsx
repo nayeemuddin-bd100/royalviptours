@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Edit, Trash2, Building2, Bed, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient, parseErrorMessage } from "@/lib/queryClient";
@@ -190,7 +191,7 @@ export default function HotelManagement() {
         mealPlanId: data.mealPlanId || undefined,
         season: data.season || "base",
         currency: data.currency || "USD",
-        pricePerNight: parseFloat(data.pricePerNight),
+        pricePerNight: data.pricePerNight,
         notes: data.notes || null,
       });
       return await res.json();
@@ -707,19 +708,31 @@ export default function HotelManagement() {
                     <div className="grid gap-4 py-4">
                       <div className="grid gap-2">
                         <Label>Room Type *</Label>
-                        <Input
+                        <Select
                           value={rateForm.roomTypeId}
-                          onChange={(e) => setRateForm({ ...rateForm, roomTypeId: e.target.value })}
-                          placeholder="Room Type ID"
-                          data-testid="input-rate-room-type"
-                        />
+                          onValueChange={(value) => setRateForm({ ...rateForm, roomTypeId: value })}
+                        >
+                          <SelectTrigger data-testid="select-rate-room-type">
+                            <SelectValue placeholder="Select room type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roomTypes.map((room) => (
+                              <SelectItem key={room.id} value={room.id}>
+                                {room.name} (Capacity: {room.occupancyMin}-{room.occupancyMax})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="grid gap-2">
-                        <Label>Meal Plan ID *</Label>
+                        <Label>Meal Plan *</Label>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Note: You'll need to create meal plans for this hotel first. For now, enter a meal plan ID manually.
+                        </p>
                         <Input
                           value={rateForm.mealPlanId}
                           onChange={(e) => setRateForm({ ...rateForm, mealPlanId: e.target.value })}
-                          placeholder="Meal Plan ID"
+                          placeholder="Meal Plan ID (temporary)"
                           data-testid="input-rate-meal-plan"
                         />
                       </div>
