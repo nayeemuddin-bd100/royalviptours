@@ -2791,7 +2791,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/catalog/airports/:id", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      const body = insertAirportSchema.omit({ tenantId: true }).partial().parse(req.body);
+      const body = insertAirportSchema.partial().parse(req.body);
       const [airport] = await db.update(airports).set({ ...body, updatedAt: new Date() }).where(
         and(eq(airports.id, id), eq(airports.tenantId, req.tenantContext!.tenantId))
       ).returning();
@@ -2845,7 +2845,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/catalog/event-categories/:id", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      const body = insertEventCategorySchema.omit({ tenantId: true }).partial().parse(req.body);
+      const body = insertEventCategorySchema.partial().parse(req.body);
       const [category] = await db.update(eventCategories).set({ ...body, updatedAt: new Date() }).where(
         and(eq(eventCategories.id, id), eq(eventCategories.tenantId, req.tenantContext!.tenantId))
       ).returning();
@@ -2899,7 +2899,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/catalog/amenities/:id", requireAuth, requireTenantRole("country_manager"), async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      const body = insertAmenitySchema.omit({ tenantId: true }).partial().parse(req.body);
+      const body = insertAmenitySchema.partial().parse(req.body);
       const [amenity] = await db.update(amenities).set({ ...body, updatedAt: new Date() }).where(
         and(eq(amenities.id, id), eq(amenities.tenantId, req.tenantContext!.tenantId))
       ).returning();

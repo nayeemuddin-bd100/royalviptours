@@ -578,10 +578,10 @@ export const insertUserSchema = createInsertSchema(users).pick({
 });
 export const insertTenantSchema = createInsertSchema(tenants).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAgencySchema = createInsertSchema(agencies).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertCitySchema = createInsertSchema(cities).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertAirportSchema = createInsertSchema(airports).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertEventCategorySchema = createInsertSchema(eventCategories).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertAmenitySchema = createInsertSchema(amenities).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCitySchema = createInsertSchema(cities).omit({ id: true, tenantId: true, createdAt: true, updatedAt: true });
+export const insertAirportSchema = createInsertSchema(airports).omit({ id: true, tenantId: true, createdAt: true, updatedAt: true });
+export const insertEventCategorySchema = createInsertSchema(eventCategories).omit({ id: true, tenantId: true, createdAt: true, updatedAt: true });
+export const insertAmenitySchema = createInsertSchema(amenities).omit({ id: true, tenantId: true, createdAt: true, updatedAt: true });
 export const insertTransportCompanySchema = createInsertSchema(transportCompanies).omit({ id: true, tenantId: true, createdAt: true, updatedAt: true });
 export const insertTransportProductSchema = createInsertSchema(transportProducts).omit({ id: true, tenantId: true, createdAt: true, updatedAt: true });
 export const insertHotelSchema = createInsertSchema(hotels).omit({ id: true, tenantId: true, ownerId: true, createdAt: true, updatedAt: true });
