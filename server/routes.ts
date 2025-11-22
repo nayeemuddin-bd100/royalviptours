@@ -45,7 +45,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Load regular user
           const [user] = await db.select().from(users).where(eq(users.id, payload.userId));
           if (user) {
-            req.user = { ...user, userType: "user" } as any;
+            // Check if this user is a travel agent with an agency
+            const [agency] = await db
+              .select({ id: agencies.id })
+              .from(agencies)
+              .where(eq(agencies.travelAgentId, payload.userId))
+              .limit(1);
+            
+            req.user = {
+              ...user,
+              userType: "user",
+              agencyId: agency?.id || undefined,
+            } as any;
           }
         }
       }
