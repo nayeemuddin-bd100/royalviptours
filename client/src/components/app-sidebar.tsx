@@ -105,7 +105,7 @@ export function AppSidebar() {
   const [location] = useLocation();
 
   // Fetch user's tenant assignments to determine navigation
-  const { data: userTenants } = useQuery<UserTenant[]>({
+  const { data: userTenants, isLoading: isLoadingTenants } = useQuery<UserTenant[]>({
     queryKey: ['/api/user/tenants'],
     enabled: !!user && user.role !== 'admin',
   });
@@ -116,6 +116,12 @@ export function AppSidebar() {
     
     if (user.role === "admin") {
       return adminItems;
+    }
+
+    // Wait for tenant data to load before determining navigation for non-admin users
+    // This prevents showing the wrong menu items during the loading phase
+    if (isLoadingTenants) {
+      return [];
     }
 
     // Check for specialized roles
