@@ -1,144 +1,230 @@
 import { db } from "./db";
-import { users, tenants, userTenants, transportCompanies } from "@shared/schema";
+import { users, tenants, userTenants } from "@shared/schema";
 import { hashPassword } from "./lib/auth";
 import { eq, and } from "drizzle-orm";
 
-async function seed() {
-  console.log("Starting seed...");
-
-  // Create an admin user
-  const [existingAdmin] = await db.select().from(users).where(eq(users.email, "admin@royalviptours.com"));
+async function createOrGetUser(email: string, password: string, role: "admin" | "user", name: string, jobTitle: string) {
+  const [existingUser] = await db.select().from(users).where(eq(users.email, email));
   
-  let adminUser;
-  if (!existingAdmin) {
-    console.log("Creating admin user...");
-    [adminUser] = await db.insert(users).values({
-      email: "admin@royalviptours.com",
-      password: hashPassword("admin123"),
-      role: "admin",
+  if (!existingUser) {
+    console.log(`  Creating user: ${email}`);
+    const [user] = await db.insert(users).values({
+      email,
+      password: hashPassword(password),
+      role,
       status: "active",
-      name: "Admin User",
-      jobTitle: "System Administrator"
+      name,
+      jobTitle
     }).returning();
-    console.log("Admin user created:", adminUser.email);
-  } else {
-    adminUser = existingAdmin;
-    console.log("Admin user already exists:", adminUser.email);
+    return user;
   }
-
-  // Create a test tenant (Jordan)
-  const [existingTenant] = await db.select().from(tenants).where(eq(tenants.countryCode, "JO"));
   
-  let tenant;
+  console.log(`  User already exists: ${email}`);
+  return existingUser;
+}
+
+async function createOrGetTenant(countryCode: string, name: string, currency: string, timezone: string) {
+  const [existingTenant] = await db.select().from(tenants).where(eq(tenants.countryCode, countryCode));
+  
   if (!existingTenant) {
-    console.log("Creating Jordan tenant...");
-    [tenant] = await db.insert(tenants).values({
-      countryCode: "JO",
-      name: "Jordan",
-      defaultCurrency: "JOD",
-      defaultTimezone: "Asia/Amman",
+    console.log(`  Creating tenant: ${name} (${countryCode})`);
+    const [tenant] = await db.insert(tenants).values({
+      countryCode,
+      name,
+      defaultCurrency: currency,
+      defaultTimezone: timezone,
       status: "active"
     }).returning();
-    console.log("Tenant created:", tenant.name);
-  } else {
-    tenant = existingTenant;
-    console.log("Tenant already exists:", tenant.name);
+    return tenant;
   }
-
-  // Create Country Manager user for Jordan
-  const [existingManager] = await db.select().from(users).where(eq(users.email, "manager@jordan.royalviptours.com"));
   
-  let managerUser;
-  if (!existingManager) {
-    console.log("Creating Country Manager user...");
-    [managerUser] = await db.insert(users).values({
-      email: "manager@jordan.royalviptours.com",
-      password: hashPassword("manager123"),
-      role: "user",
-      status: "active",
-      name: "Jordan Manager",
-      jobTitle: "Country Manager"
-    }).returning();
-    console.log("Country Manager user created:", managerUser.email);
-  } else {
-    managerUser = existingManager;
-    console.log("Country Manager user already exists:", managerUser.email);
-  }
+  console.log(`  Tenant already exists: ${name}`);
+  return existingTenant;
+}
 
-  // Assign Country Manager role to Jordan tenant
-  const [existingUserTenant] = await db.select().from(userTenants).where(
-    eq(userTenants.userId, managerUser.id)
-  );
-  
-  if (!existingUserTenant) {
-    console.log("Assigning Country Manager role to Jordan tenant...");
-    await db.insert(userTenants).values({
-      userId: managerUser.id,
-      tenantId: tenant.id,
-      tenantRole: "country_manager"
-    });
-    console.log("Role assigned successfully");
-  } else {
-    console.log("User-Tenant relationship already exists");
-  }
-
-  // Create Transport Supplier user for Jordan
-  const [existingTransport] = await db.select().from(users).where(eq(users.email, "transport@jordan.royalviptours.com"));
-  
-  let transportUser;
-  if (!existingTransport) {
-    console.log("Creating Transport Supplier user...");
-    [transportUser] = await db.insert(users).values({
-      email: "transport@jordan.royalviptours.com",
-      password: hashPassword("transport123"),
-      role: "user",
-      status: "active",
-      name: "Jordan Transport Co",
-      jobTitle: "Transport Manager"
-    }).returning();
-    console.log("Transport Supplier user created:", transportUser.email);
-
-    // Assign Transport role to Jordan tenant
-    await db.insert(userTenants).values({
-      userId: transportUser.id,
-      tenantId: tenant.id,
-      tenantRole: "transport"
-    });
-    console.log("Transport role assigned successfully");
-  } else {
-    transportUser = existingTransport;
-    console.log("Transport Supplier user already exists");
-  }
-
-  // Create Transport Company for the transport user
-  const [existingCompany] = await db.select().from(transportCompanies).where(
+async function assignTenantRole(userId: string, tenantId: string, role: "country_manager" | "transport" | "hotel" | "guide" | "sight") {
+  const [existing] = await db.select().from(userTenants).where(
     and(
-      eq(transportCompanies.tenantId, tenant.id),
-      eq(transportCompanies.ownerId, transportUser.id)
+      eq(userTenants.userId, userId),
+      eq(userTenants.tenantId, tenantId)
     )
   );
   
-  if (!existingCompany) {
-    console.log("Creating Transport Company...");
-    const [company] = await db.insert(transportCompanies).values({
-      tenantId: tenant.id,
-      ownerId: transportUser.id,
-      name: "Royal Jordan Transport",
-      description: "Premium transport services across Jordan",
-      phone: "+962 6 123 4567",
-      email: "transport@jordan.royalviptours.com"
-    }).returning();
-    console.log("Transport Company created:", company.name);
+  if (!existing) {
+    console.log(`    Assigning role: ${role}`);
+    await db.insert(userTenants).values({
+      userId: userId,
+      tenantId: tenantId,
+      tenantRole: role as any
+    });
   } else {
-    console.log("Transport Company already exists");
+    console.log(`    Role already assigned: ${role}`);
   }
+}
 
-  console.log("\n=== Seed completed successfully! ===\n");
-  console.log("Test credentials:");
-  console.log("1. Admin: admin@royalviptours.com / admin123");
-  console.log("2. Country Manager (Jordan): manager@jordan.royalviptours.com / manager123");
-  console.log("3. Transport Supplier (Jordan): transport@jordan.royalviptours.com / transport123");
-  console.log("");
+async function seed() {
+  console.log("╔════════════════════════════════════════════════════════════════╗");
+  console.log("║            ROYAL VIP TOURS - DATABASE SEED SCRIPT               ║");
+  console.log("╚════════════════════════════════════════════════════════════════╝\n");
+
+  // ===== GLOBAL USERS =====
+  console.log("📌 Creating Global Users");
+  console.log("─────────────────────────");
+  const adminUser = await createOrGetUser(
+    "admin@example.com",
+    "admin123",
+    "admin",
+    "Admin User",
+    "System Administrator"
+  );
+
+  const regularUser = await createOrGetUser(
+    "user@example.com",
+    "password123",
+    "user",
+    "Regular User",
+    "Travel Planner"
+  );
+
+  // ===== TENANTS =====
+  console.log("\n📌 Creating Tenants");
+  console.log("─────────────────────────");
+  const jordanTenant = await createOrGetTenant("JO", "Jordan", "JOD", "Asia/Amman");
+  const egyptTenant = await createOrGetTenant("EG", "Egypt", "EGP", "Africa/Cairo");
+
+  // ===== JORDAN TENANT - SUPPLIERS & MANAGERS =====
+  console.log("\n📌 Jordan Tenant - Users & Roles");
+  console.log("─────────────────────────");
+  
+  // Country Manager
+  const jordanManager = await createOrGetUser(
+    "manager.jordan@example.com",
+    "manager123",
+    "user",
+    "Ahmed Al-Qudah",
+    "Country Manager"
+  );
+  await assignTenantRole(jordanManager.id, jordanTenant.id, "country_manager");
+
+  // Transport Supplier
+  const transportSupplier = await createOrGetUser(
+    "nayeem@test.com",
+    "password123",
+    "user",
+    "Nayeem Transport Solutions",
+    "Transport Manager"
+  );
+  await assignTenantRole(transportSupplier.id, jordanTenant.id, "transport");
+
+  // Hotel Supplier
+  const hotelSupplier = await createOrGetUser(
+    "hotel.amman@example.com",
+    "hotel123",
+    "user",
+    "Amman Grand Hotel",
+    "Hotel Manager"
+  );
+  await assignTenantRole(hotelSupplier.id, jordanTenant.id, "hotel");
+
+  // Guide Supplier
+  const guideSupplier = await createOrGetUser(
+    "guide.jordan@example.com",
+    "guide123",
+    "user",
+    "Rasha Al-Rasheed",
+    "Tour Guide"
+  );
+  await assignTenantRole(guideSupplier.id, jordanTenant.id, "guide");
+
+  // Sight Supplier
+  const sightSupplier = await createOrGetUser(
+    "sight.jordan@example.com",
+    "sight123",
+    "user",
+    "Petra Heritage Tours",
+    "Attractions Manager"
+  );
+  await assignTenantRole(sightSupplier.id, jordanTenant.id, "sight");
+
+  // ===== EGYPT TENANT - SUPPLIERS & MANAGERS =====
+  console.log("\n📌 Egypt Tenant - Users & Roles");
+  console.log("─────────────────────────");
+  
+  // Country Manager
+  const egyptManager = await createOrGetUser(
+    "manager.egypt@example.com",
+    "manager123",
+    "user",
+    "Fatima Hassan",
+    "Country Manager"
+  );
+  await assignTenantRole(egyptManager.id, egyptTenant.id, "country_manager");
+
+  // Transport Supplier
+  const egyptTransport = await createOrGetUser(
+    "transport.egypt@example.com",
+    "transport123",
+    "user",
+    "Cairo Premium Transport",
+    "Transport Manager"
+  );
+  await assignTenantRole(egyptTransport.id, egyptTenant.id, "transport");
+
+  // Hotel Supplier
+  const egyptHotel = await createOrGetUser(
+    "hotel.cairo@example.com",
+    "hotel123",
+    "user",
+    "Cairo Luxury Hotels",
+    "Hotel Manager"
+  );
+  await assignTenantRole(egyptHotel.id, egyptTenant.id, "hotel");
+
+  // Guide Supplier
+  const egyptGuide = await createOrGetUser(
+    "guide.egypt@example.com",
+    "guide123",
+    "user",
+    "Dr. Mohamed Abdel-Salam",
+    "Senior Tour Guide"
+  );
+  await assignTenantRole(egyptGuide.id, egyptTenant.id, "guide");
+
+  // Sight Supplier
+  const egyptSight = await createOrGetUser(
+    "sight.egypt@example.com",
+    "sight123",
+    "user",
+    "Egyptian Heritage Foundation",
+    "Attractions Director"
+  );
+  await assignTenantRole(egyptSight.id, egyptTenant.id, "sight");
+
+  console.log("\n╔════════════════════════════════════════════════════════════════╗");
+  console.log("║                  ✅ SEED COMPLETED SUCCESSFULLY!                ║");
+  console.log("╚════════════════════════════════════════════════════════════════╝\n");
+
+  console.log("📝 TEST CREDENTIALS CREATED:\n");
+  
+  console.log("🔐 GLOBAL ACCOUNTS:");
+  console.log("   Admin: admin@example.com / admin123");
+  console.log("   Regular User: user@example.com / password123\n");
+
+  console.log("🇯🇴 JORDAN TENANT:");
+  console.log("   Country Manager: manager.jordan@example.com / manager123");
+  console.log("   Transport Supplier: nayeem@test.com / password123");
+  console.log("   Hotel Supplier: hotel.amman@example.com / hotel123");
+  console.log("   Guide Supplier: guide.jordan@example.com / guide123");
+  console.log("   Sight Supplier: sight.jordan@example.com / sight123\n");
+
+  console.log("🇪🇬 EGYPT TENANT:");
+  console.log("   Country Manager: manager.egypt@example.com / manager123");
+  console.log("   Transport Supplier: transport.egypt@example.com / transport123");
+  console.log("   Hotel Supplier: hotel.cairo@example.com / hotel123");
+  console.log("   Guide Supplier: guide.egypt@example.com / guide123");
+  console.log("   Sight Supplier: sight.egypt@example.com / sight123\n");
+
+  console.log("📖 For detailed testing guide, see: demo-accounts.md\n");
 
   process.exit(0);
 }
