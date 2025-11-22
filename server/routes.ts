@@ -1420,14 +1420,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create the RFQ with appropriate ownership
+      // Note: requestedByContactId is for agency_contacts table, not users table
+      // For now, we'll leave it null as travel agents are users, not agency contacts
       const [rfq] = await db
         .insert(rfqs)
         .values({
           tenantId: itinerary.tenantId,
           itineraryId: itineraryId,
           agencyId: agencyId || null,
-          userId: agencyId ? null : userId,
-          requestedByContactId: agencyId ? userId : null,
+          userId: userId,
+          requestedByContactId: null,
           status: "open",
           expiresAt: expiresAt ? new Date(expiresAt) : null,
         })
