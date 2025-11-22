@@ -1,12 +1,12 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Calendar, Users, Package, Check, X } from "lucide-react";
+import { ArrowLeft, Calendar, Users, Package, Check, X, FileCheck } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 
 interface RfqSegment {
   id: string;
@@ -50,6 +50,7 @@ export default function AgencyRfqDetailPage() {
   const [, params] = useRoute("/rfqs/:id");
   const rfqId = params?.id;
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const { data: rfq, isLoading, error } = useQuery<RfqDetail>({
     queryKey: ["/api/rfqs", rfqId],
@@ -84,6 +85,52 @@ export default function AgencyRfqDetailPage() {
       toast({
         title: "Error",
         description: error.message || "Failed to update quote status",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const compileQuoteMutation = useMutation({
+    mutationFn: async () => {
+      if (!rfq) return;
+      
+      // Get all accepted segments
+      const acceptedSegments = rfq.segments.filter(s => s.status === "accepted");
+      
+      // Calculate totals
+      const items = acceptedSegments.map(segment => ({
+        segmentId: segment.id,
+        supplierType: segment.supplierType,
+        description: `${segment.supplierType} service`,
+        price: parseFloat(segment.proposedPrice || "0"),
+        notes: segment.supplierNotes || "",
+      }));
+      
+      const subtotal = items.reduce((sum, item) => sum + item.price, 0);
+      const total = subtotal; // Can add taxes/fees later
+      
+      const res = await apiRequest("POST", "/api/quotes/compile", {
+        rfqId: rfq.id,
+        items,
+        currency: "USD",
+        subtotal: subtotal.toString(),
+        total: total.toString(),
+      });
+      
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+      toast({
+        title: "Quote Compiled!",
+        description: "Your quote has been created successfully.",
+      });
+      setLocation("/quotes");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to compile quote",
         variant: "destructive",
       });
     },
@@ -157,6 +204,8 @@ export default function AgencyRfqDetailPage() {
     .reduce((sum, s) => sum + parseFloat(s.proposedPrice!), 0);
 
   const quotedCount = rfq.segments.filter(s => s.proposedPrice).length;
+  const acceptedCount = rfq.segments.filter(s => s.status === "accepted").length;
+  const canCompileQuote = acceptedCount > 0;
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -188,7 +237,19 @@ export default function AgencyRfqDetailPage() {
       {/* Summary Card */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Quote Summary</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Quote Summary</CardTitle>
+            {canCompileQuote && (
+              <Button
+                onClick={() => compileQuoteMutation.mutate()}
+                disabled={compileQuoteMutation.isPending}
+                data-testid="button-compile-quote"
+              >
+                <FileCheck className="h-4 w-4 mr-2" />
+                Compile Quote
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
