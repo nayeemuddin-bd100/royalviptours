@@ -112,11 +112,11 @@ async function seed() {
   const jordanTenant = await createOrGetTenant("JO", "Jordan", "JOD", "Asia/Amman");
   const egyptTenant = await createOrGetTenant("EG", "Egypt", "EGP", "Africa/Cairo");
 
-  // Grant regular user access to all tenants (so they can create itineraries)
-  console.log("\n📌 Granting Regular User Tenant Access");
+  // Grant travel agent access to all tenants (no specific role - just tenant access)
+  console.log("\n📌 Granting Travel Agent Tenant Access");
   console.log("─────────────────────────");
-  await assignTenantRole(regularUser.id, jordanTenant.id, "country_manager");
-  await assignTenantRole(regularUser.id, egyptTenant.id, "country_manager");
+  await grantTenantAccess(regularUser.id, jordanTenant.id);
+  await grantTenantAccess(regularUser.id, egyptTenant.id);
 
   // ===== JORDAN TENANT - SUPPLIERS & MANAGERS =====
   console.log("\n📌 Jordan Tenant - Users & Roles");
