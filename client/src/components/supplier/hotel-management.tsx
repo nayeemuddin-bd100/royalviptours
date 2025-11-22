@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,13 @@ export default function HotelManagement() {
   const { data: hotels = [], isLoading: hotelsLoading } = useQuery<Hotel[]>({
     queryKey: ['/api/hotels'],
   });
+
+  // Auto-select first hotel when hotels load
+  useEffect(() => {
+    if (hotels.length > 0 && !activeHotelId) {
+      setActiveHotelId(hotels[0].id);
+    }
+  }, [hotels, activeHotelId]);
 
   // Fetch room types for selected hotel
   const { data: roomTypes = [], isLoading: roomsLoading } = useQuery<RoomType[]>({
