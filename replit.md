@@ -26,6 +26,15 @@ Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline gro
   - Ensures all auth state and tenant data is fresh on page load
   - Sidebar now correctly displays supplier/agency menus immediately after login
 
+### Supplier Account Creation Enhancement
+- **Feature:** Admin-created supplier accounts now automatically create their associated company
+  - **Transport suppliers** → Creates transport company with name "${userName}'s Transport Company"
+  - **Hotel suppliers** → Creates hotel with name "${userName}'s Hotel"  
+  - **Guide suppliers** → Creates tour guide with name "${userName}"
+  - **Sight suppliers** → Creates sight with name "${userName}'s Sight"
+  - All companies are linked via `ownerId` field to the supplier user
+  - Suppliers can immediately start managing their company after first login
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
