@@ -88,10 +88,10 @@ export const userTenants = pgTable("user_tenants", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
-  tenantRole: tenantRoleEnum("tenant_role"), // Nullable - regular users can have access without specific role
+  tenantRole: tenantRoleEnum("tenant_role").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
-  uniqueUserTenant: unique().on(table.userId, table.tenantId)
+  uniqueUserTenant: unique().on(table.userId, table.tenantId, table.tenantRole)
 }));
 
 export const agencies = pgTable("agencies", {
