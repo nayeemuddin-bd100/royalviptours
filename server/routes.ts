@@ -1447,11 +1447,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const type = event.eventType.toLowerCase();
         if (type.includes('transfer') || type.includes('transport')) {
           eventsByType.transport.push(event);
-        } else if (type.includes('accommodation') || type.includes('hotel')) {
+        } else if (type.includes('accommodation') || type.includes('hotel') || type.includes('meal')) {
           eventsByType.hotel.push(event);
         } else if (type.includes('tour') || type.includes('guide')) {
           eventsByType.guide.push(event);
-        } else if (type.includes('sight') || type.includes('attraction')) {
+        } else if (type.includes('sight') || type.includes('attraction') || type.includes('activity')) {
           eventsByType.sight.push(event);
         }
       });
@@ -1637,11 +1637,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const type = event.eventType.toLowerCase();
         if (type.includes('transfer') || type.includes('transport')) {
           eventsByType.transport.push(event);
-        } else if (type.includes('accommodation') || type.includes('hotel')) {
+        } else if (type.includes('accommodation') || type.includes('hotel') || type.includes('meal')) {
           eventsByType.hotel.push(event);
         } else if (type.includes('tour') || type.includes('guide')) {
           eventsByType.guide.push(event);
-        } else if (type.includes('sight') || type.includes('attraction')) {
+        } else if (type.includes('sight') || type.includes('attraction') || type.includes('activity')) {
           eventsByType.sight.push(event);
         }
       });
