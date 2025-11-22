@@ -3479,8 +3479,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!hotel) {
         return res.status(404).json({ message: "Hotel not found" });
       }
-      const body = insertRoomTypeSchema.parse({ ...req.body, hotelId: id });
-      const [room] = await db.insert(roomTypes).values(body).returning();
+      const body = insertRoomTypeSchema.parse(req.body);
+      const [room] = await db.insert(roomTypes).values({
+        ...body,
+        hotelId: id,
+        tenantId: req.tenantContext!.tenantId
+      }).returning();
       res.json(room);
     } catch (error: any) {
       next(error);
@@ -3514,8 +3518,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!hotel) {
         return res.status(404).json({ message: "Hotel not found" });
       }
-      const body = insertHotelRateSchema.parse({ ...req.body, hotelId: id });
-      const [rate] = await db.insert(hotelRates).values(body).returning();
+      const body = insertHotelRateSchema.parse(req.body);
+      const [rate] = await db.insert(hotelRates).values({
+        ...body,
+        hotelId: id,
+        tenantId: req.tenantContext!.tenantId
+      }).returning();
       res.json(rate);
     } catch (error: any) {
       next(error);
