@@ -2,94 +2,7 @@
 
 ## Overview
 
-Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline ground operations and travel quotations. The platform connects local suppliers (transport companies, hotels, tour guides, sights) with travel agencies worldwide, facilitating the creation of complex itineraries and the generation of accurate quotes through an RFQ (Request for Quote) workflow.
-
-The application serves as a productivity-focused information management system for the travel industry, enabling efficient collaboration between country managers who coordinate local suppliers and travel agencies requesting services.
-
-## Recent Progress (November 21, 2025)
-
-**Completed: Audit Logging System**
-- **Database Schema** - New `audit_logs` table with comprehensive tracking fields:
-  - Action types: user_login, user_logout, user_created, tenant_created/updated/deleted
-  - User context: ID, name, email captured at time of action
-  - Entity tracking: type and ID of affected resources
-  - Technical metadata: IP address, user agent, additional JSON details
-- **Backend Infrastructure**:
-  - Centralized audit helper (`server/lib/audit.ts`) for consistent logging
-  - Automatic user context extraction from authenticated requests
-  - Internal try/catch to prevent logging failures from breaking request flows
-  - Admin-only API endpoint: `GET /api/admin/audit` with DESC ordering
-- **Route Integration** - Audit logging added to critical actions:
-  - Authentication: Login and logout tracking
-  - User management: User creation
-  - Tenant management: Create, update, delete operations
-- **Frontend** - Audit Logs page at `/admin/audit`:
-  - Admin-only access with proper role enforcement
-  - Table display with action, user, entity, timestamp, IP address
-  - Loading states and empty state messaging
-  - Formatted timestamps using date-fns
-- **Testing** - E2E test verified complete workflow:
-  - Login action creates audit entry with correct user details
-  - Audit page displays entries with proper formatting
-  - IP address and timestamps captured correctly
-- Architect approved with "Pass" verdict
-
-**Previous: All Supplier Catalog Management & Country Manager Features** (November 20, 2025)
-- **Tour Guide Management** - Full CRUD for guide profiles, languages, specialties, daily fees
-- **Sight Management** - Full CRUD for attractions with entry fees, operating hours, JSON-based data
-- **Country Manager Catalog** - Complete CRUD for cities, airports, event categories, amenities
-- **Backend Routes** - 12 new endpoints for country manager catalog with proper tenant isolation:
-  - Cities: GET, POST, PATCH, DELETE
-  - Airports: GET, POST, PATCH, DELETE (with updatedAt maintenance)
-  - Event Categories: GET, POST, PATCH, DELETE (tenant-scoped, country_manager role)
-  - Amenities: GET, POST, PATCH, DELETE (tenant-scoped, country_manager role)
-- **Security Hardening**:
-  - Fixed tenant isolation on all catalog routes (prevented cross-tenant data access)
-  - Fixed tenantId reassignment vulnerability on PATCH endpoints
-  - Added updatedAt timestamp maintenance on all updates
-  - Fixed numeric field validation (feePerDay, tipsPerDay now parsed as floats)
-- Architect approved with "Pass" verdict after security fixes verified
-
-**Previous: Itinerary Builder for Travel Agencies**
-- Full CRUD itinerary management system with 10 backend API endpoints
-- List page showing all agency itineraries with status badges and actions
-- Create page with tenant selection, date range, and passenger count inputs
-- Comprehensive edit/builder page with multi-day timeline interface
-- Event management with add/edit/delete dialogs for each day
-- All endpoints properly secured with requireAgencyContact and agencyId scoping
-- Critical bug fixes:
-  - Fixed passenger count validation (frontend now casts to Number before submission)
-  - Added date change protection (blocks updates when events exist to prevent data loss)
-  - Improved error handling on edit page with loading/error states
-- E2E tests passed: itinerary creation → day generation → event management → DB verification
-- Architect approved with "Pass" verdict after multiple review cycles
-
-**Previous: Agency Authentication & Profile System**
-- Implemented dual authentication supporting both suppliers and travel agencies
-- JWT tokens include userType field ("user" or "agency") for proper routing
-- Agency profile management with Profile, Contacts, and Addresses tabs
-- Complete agency dashboard with stats overview and empty state CTAs
-- End-to-end test passed: agency login → dashboard → profile management
-
-**Previous: Supplier Catalog Management - Transport Module**
-- Transport supplier dashboard with role-based access control
-- Route (product) and fleet (vehicle) management functionality
-- Proper tenant isolation with X-Tenant-Id header validation
-- End-to-end test passed: login → create route → create vehicle → DB verification
-
-**In Progress: Country Manager Catalog Frontend**
-- Cities component completed with shadcn Form + zodResolver validation
-- Airports, Event Categories, Amenities components need Form refactoring
-- All components use proper tenant scoping and React Query
-- Sidebar navigation updated to remove non-existent routes
-
-**Recommended Future Improvements**:
-- Security: Migrate from localStorage-based tokens to HttpOnly cookies for XSS protection
-- Security: Move refresh token storage entirely server-side (currently exposed in localStorage)
-- Database: Add userType discriminator to refresh_tokens or split into separate tables for referential integrity
-- Itineraries: Add UI feedback when date changes are blocked due to existing events
-- Itineraries: Add regression tests for date changes with/without events
-- Forms: Complete Form refactoring for airports, event categories, and amenities components
+Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline ground operations and travel quotations within the B2B travel sector. It connects local suppliers (transport, hotels, guides, sights) with global travel agencies to facilitate complex itinerary creation and accurate quote generation via an RFQ workflow. The platform acts as a productivity tool for information management, fostering efficient collaboration between country managers and travel agencies.
 
 ## User Preferences
 
@@ -99,155 +12,36 @@ Preferred communication style: Simple, everyday language.
 
 ### Technology Stack
 
-**Frontend:**
-- React with TypeScript for type-safe component development
-- Vite as the build tool and development server
-- Wouter for lightweight client-side routing
-- TanStack Query (React Query) for server state management and caching
-- shadcn/ui component library built on Radix UI primitives
-- Tailwind CSS for styling with a custom B2B SaaS design system
-
-**Backend:**
-- Node.js with Express.js for the REST API server
-- TypeScript for end-to-end type safety
-- Drizzle ORM for database interactions
-- JWT-based authentication with access and refresh token pattern
-
-**Database:**
-- PostgreSQL (via Neon serverless) for relational data storage
-- Schema-driven design with comprehensive relationships between entities
+**Frontend:** React with TypeScript, Vite, Wouter, TanStack Query, shadcn/ui (Radix UI), Tailwind CSS.
+**Backend:** Node.js with Express.js, TypeScript, Drizzle ORM, JWT authentication.
+**Database:** PostgreSQL (via Neon serverless).
 
 ### Architecture Patterns
 
-**Monorepo Structure:**
-The application uses a monorepo approach with clear separation:
-- `/client` - React frontend application
-- `/server` - Express backend API
-- `/shared` - Shared TypeScript types and database schema
-
-This structure enables code sharing (especially database schemas and types) while maintaining clear boundaries between frontend and backend concerns.
-
-**Multi-Tenancy Model:**
-The platform implements a tenant-per-country architecture where:
-- Each tenant represents a country (e.g., Jordan, Egypt)
-- Users can belong to multiple tenants with different roles
-- Tenant-specific data (cities, airports, suppliers) is isolated per country
-- Country managers coordinate all suppliers and services within their tenant
-
-**Role-Based Access Control:**
-Two-tier authorization system:
-- Global roles: `admin` (platform-wide access) and `user` (tenant-scoped access)
-- Tenant roles: `country_manager`, `transport`, `hotel`, `guide`, `sight` (supplier types)
-
-This allows fine-grained permissions where users have different capabilities in different country contexts.
-
-**Authentication Strategy:**
-JWT-based authentication with dual-token approach:
-- Short-lived access tokens (15 minutes) for API requests
-- Long-lived refresh tokens (7 days) stored in database for session management
-- Tokens stored in localStorage on client-side
-- Middleware-based route protection on both client and server
-
-This provides security through token expiration while maintaining good UX through automatic token refresh.
-
-**Data Model Design:**
-The schema is organized around core business entities:
-
-1. **Catalog Management** - Master data for travel components:
-   - Cities and airports (per tenant)
-   - Event categories (dining, tours, transfers, etc.)
-   - Amenities (WiFi, accessibility features, etc.)
-
-2. **Supplier Management** - Service providers:
-   - Transport companies with product variants (transfers, hourly, intercity)
-   - Hotels with room types, meal plans, and seasonal rates
-   - Tour guides with language skills and city coverage
-   - Sights with admission fees and operational details
-
-3. **Itinerary System** - Trip planning workflow:
-   - Itineraries composed of multi-day schedules
-   - Days containing ordered events (meals, tours, transfers, accommodations)
-   - Events reference catalog items and suppliers
-
-4. **RFQ Workflow** - Quote generation process:
-   - RFQs created from itineraries
-   - Segmented by supplier type for parallel processing
-   - Quotes aggregate supplier responses with pricing
-
-**API Design:**
-RESTful API organized by resource type with standard CRUD patterns:
-- Authentication endpoints (`/api/auth/*`) for login, registration, token refresh
-- User management (`/api/user/*`) for profile and tenant associations
-- Resource endpoints follow pattern `/api/{resource}` with proper HTTP verbs
-- Middleware chains for auth verification and tenant context injection
-
-**State Management:**
-Client-side state handled through React Query with clear separation:
-- Server state (API data) managed via TanStack Query with automatic caching
-- Authentication state via custom AuthContext provider
-- Local UI state via React component state
-- Query invalidation patterns for optimistic updates
-
-**UI Component Strategy:**
-Built on shadcn/ui philosophy:
-- Radix UI primitives for accessible, unstyled components
-- Custom Tailwind styling following B2B design guidelines
-- Design system focused on professional credibility and information density
-- Consistent color palette with light/dark mode support
-- Professional blue primary color (220 70% 50%) for trust in B2B context
+**Monorepo Structure:** Separates `/client`, `/server`, and `/shared` to enable code sharing and clear boundaries.
+**Multi-Tenancy Model:** Tenant-per-country architecture for geographical isolation of data (e.g., suppliers, cities) and operations. Users can have multiple roles across different tenants.
+**Role-Based Access Control:** Two-tier system with global roles (`admin`, `user`) and tenant-specific roles (`country_manager`, `transport`, `hotel`, `guide`, `sight`) for fine-grained permissions.
+**Authentication Strategy:** JWT-based authentication using short-lived access tokens and long-lived refresh tokens for secure and user-friendly session management.
+**Data Model Design:** Organized around core entities: Catalog Management (cities, airports, event categories, amenities), Supplier Management (transport, hotels, guides, sights), Itinerary System (multi-day schedules with events), and RFQ Workflow (quote generation from itineraries).
+**API Design:** RESTful API with standard CRUD patterns, organized by resource type, employing middleware for authentication and tenant context.
+**State Management:** Client-side state managed by React Query for server state, custom AuthContext for authentication, and React component state for local UI.
+**UI Component Strategy:** Built on shadcn/ui (Radix UI primitives) with custom Tailwind CSS for a professional B2B SaaS design system, focusing on information density and a consistent color palette.
 
 ### Design Decisions
 
-**Why Drizzle ORM:**
-Chosen for type-safe database queries that map directly to PostgreSQL, providing excellent TypeScript integration and migration management while remaining lightweight compared to heavier ORMs.
-
-**Why Neon Serverless:**
-PostgreSQL-compatible serverless database that scales automatically and provides WebSocket connections, ideal for development and production deployment on platforms like Replit.
-
-**Why JWT over Sessions:**
-Stateless authentication enables easier horizontal scaling and works well with modern SPA architecture. Refresh token storage in database provides revocation capability while maintaining statelessness for access tokens.
-
-**Why Multi-Tenant per Country:**
-Travel operations are inherently geographic - suppliers, regulations, and logistics are country-specific. This model allows independent operation of each country while sharing the platform infrastructure.
-
-**Why Monorepo with Shared Schema:**
-Database schema and types are the contract between frontend and backend. Sharing them eliminates drift and provides compile-time guarantees that client and server speak the same data language.
+**Drizzle ORM:** Chosen for type-safe PostgreSQL interactions and lightweight migration management.
+**Neon Serverless:** Selected for its PostgreSQL compatibility, serverless scalability, and WebSocket support.
+**JWT over Sessions:** Provides stateless authentication for better horizontal scaling and SPA compatibility, with refresh token revocation capabilities.
+**Multi-Tenant per Country:** Aligns with the geographic nature of travel operations, enabling independent country-specific management.
+**Monorepo with Shared Schema:** Ensures data consistency and compile-time guarantees between frontend and backend by sharing database schemas and types.
 
 ## External Dependencies
 
-**UI Component Library:**
-- Radix UI (@radix-ui/*) - Comprehensive set of unstyled, accessible component primitives
-- Lucide React - Icon library for consistent iconography
-- class-variance-authority - Utility for managing component variants
-- tailwind-merge and clsx - Tailwind class management utilities
-
-**Authentication:**
-- jsonwebtoken - JWT creation and verification
-- bcryptjs - Password hashing (10 rounds)
-- crypto (Node.js built-in) - Refresh token generation
-
-**Data & Validation:**
-- Drizzle ORM (drizzle-orm, drizzle-kit) - Database toolkit and migrations
-- Zod (via drizzle-zod) - Schema validation integrated with database schema
-- @tanstack/react-query - Async state management
-
-**Database:**
-- @neondatabase/serverless - PostgreSQL client for Neon database
-- ws - WebSocket support for Neon connections
-
-**Development:**
-- Vite - Fast build tool with HMR
-- TypeScript - Type safety across the stack
-- @replit/* plugins - Replit-specific development tooling
-
-**Styling:**
-- Tailwind CSS - Utility-first CSS framework
-- PostCSS with Autoprefixer - CSS processing
-
-**Date Management:**
-- date-fns - Lightweight date utility library for formatting and manipulation
-
-**Forms:**
-- React Hook Form (@hookform/resolvers) - Form state management (implied by resolver package)
-
-The application does not currently use a specific database provider in production configuration but is designed to work with any PostgreSQL-compatible database through the Drizzle ORM abstraction layer.
+**UI Component Library:** Radix UI (@radix-ui/*), Lucide React, class-variance-authority, tailwind-merge, clsx.
+**Authentication:** jsonwebtoken, bcryptjs, crypto (Node.js built-in).
+**Data & Validation:** Drizzle ORM (drizzle-orm, drizzle-kit), Zod (via drizzle-zod), @tanstack/react-query.
+**Database:** @neondatabase/serverless, ws.
+**Development:** Vite, TypeScript, @replit/* plugins.
+**Styling:** Tailwind CSS, PostCSS with Autoprefixer.
+**Date Management:** date-fns.
+**Forms:** React Hook Form (@hookform/resolvers).
