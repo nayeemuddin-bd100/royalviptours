@@ -1782,15 +1782,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Accept or reject a quote (RFQ segment)
-  app.patch("/api/agency/rfq-segments/:id/status", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+  app.patch("/api/agency/rfq-segments/:id/status", requireAuth, async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
-      const agencyId = (req.user as any).agencyId;
+      const user = req.user as any;
+      const userId = user.id;
+      const agencyId = user.agencyId;
       const { status } = z.object({
         status: z.enum(["accepted", "rejected"]),
       }).parse(req.body);
 
-      // Get the segment and verify it belongs to this agency's RFQ
+      // Get the segment and verify it belongs to this user's or agency's RFQ
       const [segment] = await db
         .select({
           segment: rfqSegments,
@@ -1804,7 +1806,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Quote not found" });
       }
 
-      if (segment.rfq.agencyId !== agencyId) {
+      // Verify ownership: either agency contact OR regular user who created the RFQ
+      const hasAccess = agencyId 
+        ? segment.rfq.agencyId === agencyId
+        : segment.rfq.userId === userId;
+
+      if (!hasAccess) {
         return res.status(403).json({ message: "Access denied" });
       }
 
