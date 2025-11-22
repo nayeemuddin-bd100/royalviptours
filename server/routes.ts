@@ -1994,6 +1994,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create user with tenant assignment (for Travel Agent, Country Manager, Supplier)
+  app.post("/api/admin/users/create-with-role", requireAuth, requireRole("admin"), async (req, res, next) => {
+    try {
+      const schema = z.object({
+        email: z.string().email(),
+        password: z.string().min(6),
+        name: z.string().min(1),
+        accountType: z.enum(["travel_agent", "country_manager", "supplier"]),
+        tenantId: z.string().optional(),
+        supplierType: z.enum(["transport", "hotel", "guide", "sight"]).optional(),
+      });
+
+      const { email, password: rawPassword, name, accountType, tenantId, supplierType } = schema.parse(req.body);
+
+      // Validate tenant selection
+      if (!tenantId) {
+        return res.status(400).json({ message: "Tenant selection is required" });
+      }
+
+      // Verify tenant exists
+      const [tenantExists] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+      if (!tenantExists) {
+        return res.status(400).json({ message: "Selected country does not exist" });
+      }
+
+      // Check if user already exists
+      const existingUser = await db.select().from(users).where(eq(users.email, email));
+      if (existingUser.length > 0) {
+        return res.status(400).json({ message: "Email already registered" });
+      }
+
+      // Create user with "user" global role (all three account types use "user" role globally)
+      const [user] = await db.insert(users).values({
+        email,
+        password: hashPassword(rawPassword),
+        role: "user",
+        name,
+        status: "active",
+      }).returning();
+
+      // Assign tenant role based on account type
+      let assignedRole: string | null = null;
+      
+      if (accountType === "travel_agent") {
+        assignedRole = null; // Travel agents have no specific role
+      } else if (accountType === "country_manager") {
+        assignedRole = "country_manager";
+      } else if (accountType === "supplier") {
+        assignedRole = supplierType || "transport";
+      }
+
+      // Create user_tenants record
+      await db.insert(userTenants).values({
+        userId: user.id,
+        tenantId: tenantId,
+        tenantRole: assignedRole as any,
+      });
+
+      // Log user creation with role
+      await logAudit(req, {
+        action: "user_created",
+        entityType: "user",
+        entityId: user.id,
+        details: {
+          email: user.email,
+          name: user.name,
+          accountType,
+          tenantId,
+          tenantRole: assignedRole,
+        },
+      });
+
+      const { password: _, ...userWithoutPassword } = user;
+      res.json({
+        ...userWithoutPassword,
+        tenantAssignment: {
+          tenantId,
+          tenantRole: assignedRole,
+          accountType,
+        },
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // ===== Admin Routes - Audit Logs =====
 
   app.get("/api/admin/audit", requireAuth, requireRole("admin"), async (req, res, next) => {
