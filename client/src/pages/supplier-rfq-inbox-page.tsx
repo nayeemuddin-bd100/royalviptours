@@ -161,10 +161,10 @@ export default function SupplierRfqInboxPage() {
           <Card key={item.segment.id} className="hover-elevate" data-testid={`card-segment-${item.segment.id}`}>
             <CardHeader>
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <CardTitle className="text-xl">{item.itinerary.tripName}</CardTitle>
+                <div className="flex-1">
+                  <CardTitle className="text-xl">{item.itinerary.title}</CardTitle>
                   <CardDescription>
-                    {item.agency.tradeName || item.agency.legalName}
+                    {item.agency ? (item.agency.tradeName || item.agency.legalName) : "Direct Request"}
                   </CardDescription>
                 </div>
                 {getStatusBadge(item.segment.status)}
@@ -180,7 +180,7 @@ export default function SupplierRfqInboxPage() {
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">Passengers</div>
-                  <div className="font-medium">{item.itinerary.passengerCount}</div>
+                  <div className="font-medium">{item.itinerary.paxAdults + item.itinerary.paxChildren}</div>
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">Event Type</div>
@@ -189,15 +189,15 @@ export default function SupplierRfqInboxPage() {
                 {item.segment.proposedPrice && (
                   <div>
                     <div className="text-sm text-muted-foreground">Your Quote</div>
-                    <div className="font-medium">${item.segment.proposedPrice}</div>
+                    <div className="font-medium">${parseFloat(item.segment.proposedPrice).toFixed(2)}</div>
                   </div>
                 )}
               </div>
 
-              {item.segment.eventDetails && (
+              {item.itinerary.notes && (
                 <div className="mt-4">
-                  <div className="text-sm text-muted-foreground mb-1">Details</div>
-                  <p className="text-sm">{item.segment.eventDetails}</p>
+                  <div className="text-sm text-muted-foreground mb-1">Trip Notes</div>
+                  <p className="text-sm">{item.itinerary.notes}</p>
                 </div>
               )}
 
@@ -231,7 +231,7 @@ export default function SupplierRfqInboxPage() {
             <DialogDescription>
               {selectedSegment && (
                 <>
-                  {selectedSegment.itinerary.tripName} - {selectedSegment.agency.tradeName || selectedSegment.agency.legalName}
+                  {selectedSegment.itinerary.title} - {selectedSegment.agency ? (selectedSegment.agency.tradeName || selectedSegment.agency.legalName) : "Direct Request"}
                 </>
               )}
             </DialogDescription>
