@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { User } from "@shared/schema";
 import { db } from "../db";
-import { userTenants, refreshTokens } from "@shared/schema";
+import { userTenants, refreshTokens, agencies } from "@shared/schema";
 import { eq, and, lt, isNull } from "drizzle-orm";
 
 if (!process.env.SESSION_SECRET) {

@@ -3826,10 +3826,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Quote Routes =====
   
-  app.get("/api/quotes", requireAuth, async (req, res, next) => {
+  app.get("/api/quotes", requireAuth, async (req: AuthRequest, res, next) => {
     try {
-      const allQuotes = await db.select().from(quotes).orderBy(desc(quotes.createdAt));
-      res.json(allQuotes);
+      const user = req.user as any;
+      const userId = user.id;
+      const userType = user.userType;
+      const directAgencyId = user.agencyId;
+
+      // Get agency ID for both agency contacts and travel agent users
+      const agencyId = await getAgencyIdForUser(userId, userType, directAgencyId);
+
+      let userQuotes;
+
+      if (agencyId) {
+        // User has an agency - get quotes for RFQs belonging to their agency
+        userQuotes = await db
+          .select()
+          .from(quotes)
+          .leftJoin(rfqs, eq(quotes.rfqId, rfqs.id))
+          .where(eq(rfqs.agencyId, agencyId))
+          .orderBy(desc(quotes.createdAt));
+        
+        // Map to return just the quote data
+        const quotesData = userQuotes.map(row => row.quotes);
+        res.json(quotesData);
+      } else {
+        // Regular user without agency - get quotes for their own itineraries
+        userQuotes = await db
+          .select()
+          .from(quotes)
+          .leftJoin(rfqs, eq(quotes.rfqId, rfqs.id))
+          .leftJoin(itineraries, eq(rfqs.itineraryId, itineraries.id))
+          .where(eq(itineraries.createdByUserId, userId))
+          .orderBy(desc(quotes.createdAt));
+        
+        // Map to return just the quote data
+        const quotesData = userQuotes.map(row => row.quotes);
+        res.json(quotesData);
+      }
     } catch (error: any) {
       next(error);
     }
