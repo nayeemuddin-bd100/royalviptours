@@ -39,7 +39,15 @@ export default function AgencyItineraryNewPage() {
 
   const { data: tenants = [] } = useQuery<Tenant[]>({
     queryKey: ["/api/tenants"],
-    staleTime: 0,
+    queryFn: async () => {
+      const res = await fetch("/api/tenants", {
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("auth_token") || ""}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch tenants");
+      return res.json();
+    },
   });
 
   const createMutation = useMutation({
