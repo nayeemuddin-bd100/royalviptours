@@ -1072,24 +1072,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(agencyInvitations.status, "pending"));
       const pendingInvitations = pendingInvitationsResults.map(r => r.userId);
 
-      // Combine all excluded user IDs
-      const excludedUserIds = [...new Set([...usersWithTenantRole, ...existingTeamMembers, ...pendingInvitations])];
+      // Combine all excluded user IDs and remove duplicates
+      const excludedUserIds = Array.from(new Set([...usersWithTenantRole, ...existingTeamMembers, ...pendingInvitations]));
 
-      // Get available users
-      let query = db
-        .select({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          role: users.role
-        })
-        .from(users)
-        .where(eq(users.status, "active"));
-
-      // Only apply notInArray if there are users to exclude
+      // Get available users - only normal users (no tenant roles, no active memberships, no pending invitations)
       const availableUsers = excludedUserIds.length > 0
-        ? await query.where(notInArray(users.id, excludedUserIds))
-        : await query;
+        ? await db
+            .select({
+              id: users.id,
+              name: users.name,
+              email: users.email,
+              role: users.role
+            })
+            .from(users)
+            .where(and(
+              eq(users.status, "active"),
+              notInArray(users.id, excludedUserIds)
+            ))
+        : await db
+            .select({
+              id: users.id,
+              name: users.name,
+              email: users.email,
+              role: users.role
+            })
+            .from(users)
+            .where(eq(users.status, "active"));
 
       res.json(availableUsers);
     } catch (error: any) {
