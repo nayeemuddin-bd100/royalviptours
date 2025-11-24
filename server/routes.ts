@@ -246,28 +246,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/role-requests", requireAuth, async (req: AuthRequest, res, next) => {
     try {
-      const { requestType, data } = z.object({
+      const { requestType, data, countryCode } = z.object({
         requestType: z.enum(["travel_agent", "transport", "hotel", "guide", "sight"]),
         data: z.record(z.any()).optional(),
+        countryCode: z.string().min(1),
       }).parse(req.body);
 
-      // Check if user already has a pending request
+      // Find tenant by country code
+      const [tenant] = await db
+        .select()
+        .from(tenants)
+        .where(eq(tenants.countryCode, countryCode));
+
+      if (!tenant) {
+        return res.status(400).json({ message: "Invalid country selected" });
+      }
+
+      // Check if user already has a pending request for this tenant
       const [existing] = await db
         .select()
         .from(roleRequests)
         .where(and(
           eq(roleRequests.userId, req.user!.id),
+          eq(roleRequests.tenantId, tenant.id),
           eq(roleRequests.status, "pending")
         ));
 
       if (existing) {
-        return res.status(400).json({ message: "You already have a pending role request" });
+        return res.status(400).json({ message: "You already have a pending role request for this country" });
       }
 
       const [request] = await db
         .insert(roleRequests)
         .values({
           userId: req.user!.id,
+          tenantId: tenant.id,
           requestType: requestType as any,
           status: "pending",
           data: data || null,
@@ -282,12 +295,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/role-requests/my-request", requireAuth, async (req: AuthRequest, res, next) => {
     try {
-      const [request] = await db
-        .select()
+      const requests = await db
+        .select({
+          id: roleRequests.id,
+          userId: roleRequests.userId,
+          tenantId: roleRequests.tenantId,
+          requestType: roleRequests.requestType,
+          status: roleRequests.status,
+          data: roleRequests.data,
+          rejectionNote: roleRequests.rejectionNote,
+          createdAt: roleRequests.createdAt,
+          tenantName: tenants.name,
+          tenantCountryCode: tenants.countryCode,
+        })
         .from(roleRequests)
-        .where(eq(roleRequests.userId, req.user!.id));
+        .leftJoin(tenants, eq(roleRequests.tenantId, tenants.id))
+        .where(eq(roleRequests.userId, req.user!.id))
+        .orderBy(desc(roleRequests.createdAt));
 
-      res.json(request || null);
+      res.json(requests);
     } catch (error: any) {
       next(error);
     }
@@ -319,6 +345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .select({
           id: roleRequests.id,
           userId: roleRequests.userId,
+          tenantId: roleRequests.tenantId,
           requestType: roleRequests.requestType,
           status: roleRequests.status,
           data: roleRequests.data,
@@ -326,9 +353,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdAt: roleRequests.createdAt,
           userName: users.name,
           userEmail: users.email,
+          tenantName: tenants.name,
+          tenantCountryCode: tenants.countryCode,
         })
         .from(roleRequests)
         .leftJoin(users, eq(roleRequests.userId, users.id))
+        .leftJoin(tenants, eq(roleRequests.tenantId, tenants.id))
         .orderBy(desc(roleRequests.createdAt));
 
       res.json(requests);
@@ -356,19 +386,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .set({ status: "approved" })
         .where(eq(roleRequests.id, id));
 
-      // Update user role based on request type
-      const roleMap: Record<string, any> = {
-        travel_agent: "travel_agent",
-        transport: "transport",
-        hotel: "hotel",
-        guide: "guide",
-        sight: "sight",
-      };
+      // Create or update userTenants record (tenant-specific role assignment)
+      const [existingUserTenant] = await db
+        .select()
+        .from(userTenants)
+        .where(and(
+          eq(userTenants.userId, request.userId),
+          eq(userTenants.tenantId, request.tenantId)
+        ));
 
-      await db
-        .update(users)
-        .set({ role: roleMap[request.requestType] || "user" })
-        .where(eq(users.id, request.userId));
+      if (existingUserTenant) {
+        // Update existing tenant role
+        await db
+          .update(userTenants)
+          .set({ tenantRole: request.requestType as any })
+          .where(and(
+            eq(userTenants.userId, request.userId),
+            eq(userTenants.tenantId, request.tenantId)
+          ));
+      } else {
+        // Create new tenant role assignment
+        await db
+          .insert(userTenants)
+          .values({
+            userId: request.userId,
+            tenantId: request.tenantId,
+            tenantRole: request.requestType as any,
+          });
+      }
+
+      // User's global role stays as "user" - role is now managed per tenant
 
       res.json({ message: "Request approved" });
     } catch (error: any) {

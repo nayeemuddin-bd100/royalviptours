@@ -78,6 +78,7 @@ export const auditLogs = pgTable("audit_logs", {
 export const roleRequests = pgTable("role_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
   requestType: roleRequestTypeEnum("request_type").notNull(),
   status: roleRequestStatusEnum("status").notNull().default("pending"),
   data: jsonb("data"), // Stores role-specific data (agency info, supplier info, etc.)
@@ -85,7 +86,7 @@ export const roleRequests = pgTable("role_requests", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
-  uniqueUserRequest: unique().on(table.userId)
+  uniqueUserTenantRequest: unique().on(table.userId, table.tenantId)
 }));
 
 export const tenants = pgTable("tenants", {
