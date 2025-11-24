@@ -2862,6 +2862,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/user/tenants", requireAuth, async (req: AuthRequest, res, next) => {
     try {
+      // Get user's direct tenant roles
       const userTenantsData = await db
         .select({
           id: userTenants.id,
@@ -2875,7 +2876,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .leftJoin(tenants, eq(userTenants.tenantId, tenants.id))
         .where(eq(userTenants.userId, req.user!.id));
       
-      res.json(userTenantsData);
+      // If user has tenant roles, return those
+      if (userTenantsData.length > 0) {
+        return res.json(userTenantsData);
+      }
+
+      // Otherwise, check if user is an active team member and return agency's tenant
+      const [teamMembership] = await db
+        .select({
+          id: agencyTeamMembers.id,
+          tenantId: agencyTeamMembers.tenantId,
+          tenantRole: sql<string>`'team_member'`,
+          tenantName: tenants.name,
+          tenantCountryCode: tenants.countryCode,
+          tenantStatus: tenants.status
+        })
+        .from(agencyTeamMembers)
+        .leftJoin(tenants, eq(agencyTeamMembers.tenantId, tenants.id))
+        .where(and(
+          eq(agencyTeamMembers.userId, req.user!.id),
+          eq(agencyTeamMembers.isActive, true)
+        ))
+        .limit(1);
+
+      if (teamMembership) {
+        return res.json([teamMembership]);
+      }
+      
+      // No tenant roles or team membership
+      res.json([]);
     } catch (error: any) {
       next(error);
     }
