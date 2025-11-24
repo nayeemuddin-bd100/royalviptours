@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Building2, Users, MapPin, Plus, Edit, Trash2, Save } from "lucide-react";
+import { Building2, Users, MapPin, Plus, Edit, Trash2, Save, Mail, UserCheck, UserX, Send } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import type { Agency, AgencyContact, AgencyAddress } from "@shared/schema";
 
 export default function AgencyAccountPage() {
@@ -30,10 +31,14 @@ export default function AgencyAccountPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 max-w-md" data-testid="tabs-account">
+        <TabsList className="grid w-full grid-cols-4 max-w-2xl" data-testid="tabs-account">
           <TabsTrigger value="profile" data-testid="tab-profile">
             <Building2 className="w-4 h-4 mr-2" />
             Profile
+          </TabsTrigger>
+          <TabsTrigger value="team" data-testid="tab-team">
+            <Users className="w-4 h-4 mr-2" />
+            Team
           </TabsTrigger>
           <TabsTrigger value="contacts" data-testid="tab-contacts">
             <Users className="w-4 h-4 mr-2" />
@@ -47,6 +52,10 @@ export default function AgencyAccountPage() {
 
         <TabsContent value="profile">
           <ProfileTab />
+        </TabsContent>
+
+        <TabsContent value="team">
+          <TeamTab />
         </TabsContent>
 
         <TabsContent value="contacts">
@@ -912,6 +921,265 @@ function AddressesTab() {
               data-testid="button-save-address"
             >
               {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function TeamTab() {
+  const { toast } = useToast();
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
+
+  const { data: availableUsers, isLoading: usersLoading } = useQuery<any[]>({
+    queryKey: ["/api/agency/available-users"],
+  });
+
+  const { data: teamMembers, isLoading: membersLoading } = useQuery<any[]>({
+    queryKey: ["/api/agency/team/members"],
+  });
+
+  const inviteMutation = useMutation({
+    mutationFn: (data: { userId: string; message?: string }) =>
+      apiRequest("POST", "/api/agency/team/invitations", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agency/available-users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agency/team/members"] });
+      setShowInviteDialog(false);
+      setSelectedUserId("");
+      setInviteMessage("");
+      toast({
+        title: "Invitation sent",
+        description: "Team member invitation has been sent successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to send invitation",
+        description: error.message || "Could not send invitation",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiRequest("PATCH", `/api/agency/team/members/${id}/toggle-active`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agency/team/members"] });
+      toast({
+        title: "Status updated",
+        description: "Team member status has been updated.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update failed",
+        description: error.message || "Failed to update status",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSendInvitation = () => {
+    if (!selectedUserId) {
+      toast({
+        title: "No user selected",
+        description: "Please select a user to invite",
+        variant: "destructive",
+      });
+      return;
+    }
+    inviteMutation.mutate({ userId: selectedUserId, message: inviteMessage });
+  };
+
+  if (usersLoading || membersLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-8 w-48" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-64 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <div className="space-y-6">
+        <Card data-testid="card-invite-team">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Invite Team Members</CardTitle>
+                <CardDescription>
+                  Invite users without tenant roles to join your agency team
+                </CardDescription>
+              </div>
+              <Button
+                onClick={() => setShowInviteDialog(true)}
+                disabled={!availableUsers || availableUsers.length === 0}
+                data-testid="button-invite-member"
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Send Invitation
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {!availableUsers || availableUsers.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No available users to invite</p>
+                <p className="text-sm">
+                  All eligible users have either been invited or already have roles
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {availableUsers.length} user{availableUsers.length !== 1 ? "s" : ""} available to invite
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-team-members">
+          <CardHeader>
+            <CardTitle>Team Members</CardTitle>
+            <CardDescription>
+              Manage your agency team members and their access
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!teamMembers || teamMembers.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No team members yet</p>
+                <p className="text-sm">
+                  Invite users to join your team and collaborate on itineraries
+                </p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Active</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {teamMembers.map((member: any) => (
+                    <TableRow key={member.id} data-testid={`row-member-${member.id}`}>
+                      <TableCell className="font-medium" data-testid={`text-member-name-${member.id}`}>
+                        {member.userName || "N/A"}
+                      </TableCell>
+                      <TableCell data-testid={`text-member-email-${member.id}`}>
+                        {member.userEmail}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(member.joinedAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={member.isActive ? "default" : "secondary"}
+                          data-testid={`badge-member-status-${member.id}`}
+                        >
+                          {member.isActive ? (
+                            <>
+                              <UserCheck className="w-3 h-3 mr-1" />
+                              Active
+                            </>
+                          ) : (
+                            <>
+                              <UserX className="w-3 h-3 mr-1" />
+                              Inactive
+                            </>
+                          )}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Switch
+                          checked={member.isActive}
+                          onCheckedChange={() => toggleActiveMutation.mutate(member.id)}
+                          disabled={toggleActiveMutation.isPending}
+                          data-testid={`switch-member-active-${member.id}`}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+        <DialogContent data-testid="dialog-invite-member">
+          <DialogHeader>
+            <DialogTitle>Invite Team Member</DialogTitle>
+            <DialogDescription>
+              Select a user to invite to your agency team
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="user">Select User *</Label>
+              <Select
+                value={selectedUserId}
+                onValueChange={setSelectedUserId}
+              >
+                <SelectTrigger data-testid="select-invite-user">
+                  <SelectValue placeholder="Choose a user" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableUsers?.map((user: any) => (
+                    <SelectItem key={user.id} value={user.id} data-testid={`option-user-${user.id}`}>
+                      {user.name} ({user.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="message">Optional Message</Label>
+              <Textarea
+                id="message"
+                placeholder="Add a personal message to the invitation..."
+                value={inviteMessage}
+                onChange={(e) => setInviteMessage(e.target.value)}
+                rows={4}
+                data-testid="textarea-invite-message"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowInviteDialog(false);
+                setSelectedUserId("");
+                setInviteMessage("");
+              }}
+              data-testid="button-cancel-invite"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendInvitation}
+              disabled={inviteMutation.isPending || !selectedUserId}
+              data-testid="button-send-invite"
+            >
+              {inviteMutation.isPending ? "Sending..." : "Send Invitation"}
             </Button>
           </DialogFooter>
         </DialogContent>

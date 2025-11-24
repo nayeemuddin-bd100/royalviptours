@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Database,
   Inbox,
+  Mail,
 } from "lucide-react";
 import {
   Sidebar,
@@ -86,6 +87,7 @@ const guideItems = [
 // Normal User navigation items
 const normalUserItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Invitations", url: "/user/invitations", icon: Mail },
 ];
 
 // Agency navigation items

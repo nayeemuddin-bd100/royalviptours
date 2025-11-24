@@ -29,6 +29,7 @@ import AgencyRfqsPage from "@/pages/agency-rfqs-page";
 import AgencyRfqDetailPage from "@/pages/agency-rfq-detail-page";
 import SupplierRfqInboxPage from "@/pages/supplier-rfq-inbox-page";
 import CountryManagerCatalogPage from "@/pages/country-manager-catalog-page";
+import UserInvitationsPage from "@/pages/user-invitations-page";
 
 function Router() {
   return (
@@ -37,6 +38,7 @@ function Router() {
       <Route path="/register/agency" component={AgencyRegistrationPage} />
       <ProtectedRoute path="/" component={HomePage} />
       <ProtectedRoute path="/user-dashboard" component={UserDashboard} />
+      <ProtectedRoute path="/user/invitations" component={UserInvitationsPage} />
       <ProtectedRoute path="/admin/tenants" component={TenantsPage} />
       <ProtectedRoute path="/admin/users" component={UsersPage} />
       <ProtectedRoute path="/admin/audit" component={AuditLogsPage} />
