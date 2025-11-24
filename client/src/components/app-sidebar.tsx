@@ -82,6 +82,11 @@ const guideItems = [
   { title: "RFQ Inbox", url: "/supplier/rfq-inbox", icon: FileText },
 ];
 
+// Normal User navigation items
+const normalUserItems = [
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+];
+
 // Agency navigation items
 const agencyItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -118,6 +123,11 @@ export function AppSidebar() {
       return adminItems;
     }
 
+    // Normal users (not yet approved for any role) only see Dashboard
+    if (user.role === "user") {
+      return normalUserItems;
+    }
+
     // Wait for tenant data to load before determining navigation for non-admin users
     // This prevents showing the wrong menu items during the loading phase
     if (isLoadingTenants) {
@@ -147,10 +157,8 @@ export function AppSidebar() {
       }
     }
     
-    // For all regular users / travel agents (non-suppliers),
-    // show agency navigation (Dashboard, My Itineraries, RFQs, Quotes, Account)
-    // This allows users to create itineraries and manage travel requests
-    return agencyItems;
+    // Default to normal user navigation
+    return normalUserItems;
   };
 
   const items = getNavigationItems();
