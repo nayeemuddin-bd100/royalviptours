@@ -27,7 +27,7 @@ export default function UserDashboard() {
     },
   });
 
-  const { data: roleRequest, isLoading: requestLoading, refetch } = useQuery({
+  const { data: roleRequests = [], isLoading: requestLoading, refetch } = useQuery({
     queryKey: ["/api/role-requests/my-request"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/role-requests/my-request");
@@ -39,7 +39,8 @@ export default function UserDashboard() {
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/role-requests", {
         requestType: selectedRole,
-        data: selectedRole === "travel_agent" ? data : { country: data.country, ...data },
+        countryCode: data.country,
+        data: data,
       });
       return await res.json();
     },
@@ -170,78 +171,84 @@ export default function UserDashboard() {
       </div>
 
       {/* Request History Section */}
-      {roleRequest && (
+      {roleRequests.length > 0 && (
         <Card className="border-blue-200 bg-blue-50">
           <CardHeader>
-            <CardTitle className="text-lg">Your Role Request Status</CardTitle>
+            <CardTitle className="text-lg">Your Role Requests</CardTitle>
+            <CardDescription>View the status of all your role requests across different countries</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium capitalize">{roleRequest.requestType.replace("_", " ")}</p>
-                <p className="text-sm text-muted-foreground">
-                  Submitted on {new Date(roleRequest.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-              <Badge className={statusColor[roleRequest.status as keyof typeof statusColor]}>
-                <span className="flex items-center gap-1">
-                  {statusIcon[roleRequest.status as keyof typeof statusIcon]}
-                  {roleRequest.status}
-                </span>
-              </Badge>
-            </div>
-
-            {/* Show submitted data */}
-            {roleRequest.data && (
-              <div className="bg-blue-100 border border-blue-300 rounded p-3 text-sm">
-                <p className="font-medium text-blue-900 mb-2">Submitted Information:</p>
-                <div className="space-y-1 text-blue-800">
-                  {Object.entries(roleRequest.data).map(([key, value]: [string, any]) => (
-                    <p key={key}>
-                      <span className="font-medium capitalize">{key.replace(/([A-Z])/g, " $1")}:</span> {String(value)}
+            {roleRequests.map((roleRequest: any) => (
+              <div key={roleRequest.id} className="border border-blue-300 rounded-lg p-4 bg-white space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium capitalize">{roleRequest.requestType?.replace("_", " ") || "N/A"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {roleRequest.tenantName || roleRequest.tenantCountryCode || "Unknown"} • Submitted on {new Date(roleRequest.createdAt).toLocaleDateString()}
                     </p>
-                  ))}
+                  </div>
+                  <Badge className={statusColor[roleRequest.status as keyof typeof statusColor]}>
+                    <span className="flex items-center gap-1">
+                      {statusIcon[roleRequest.status as keyof typeof statusIcon]}
+                      {roleRequest.status}
+                    </span>
+                  </Badge>
+                </div>
+
+                {/* Show submitted data */}
+                {roleRequest.data && (
+                  <div className="bg-blue-100 border border-blue-300 rounded p-3 text-sm">
+                    <p className="font-medium text-blue-900 mb-2">Submitted Information:</p>
+                    <div className="space-y-1 text-blue-800">
+                      {Object.entries(roleRequest.data).map(([key, value]: [string, any]) => (
+                        <p key={key}>
+                          <span className="font-medium capitalize">{key.replace(/([A-Z])/g, " $1")}:</span> {String(value)}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {roleRequest.status === "rejected" && roleRequest.rejectionNote && (
+                  <div className="bg-red-100 border border-red-300 rounded p-3 text-sm">
+                    <p className="font-medium text-red-900 mb-1">Rejection Reason:</p>
+                    <p className="text-red-800">{roleRequest.rejectionNote}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  {roleRequest.status === "pending" && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => cancelRequestMutation.mutate(roleRequest.id)}
+                      disabled={cancelRequestMutation.isPending}
+                      data-testid={`button-cancel-request-${roleRequest.id}`}
+                    >
+                      Cancel Request
+                    </Button>
+                  )}
+
+                  {roleRequest.status === "rejected" && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => cancelRequestMutation.mutate(roleRequest.id)}
+                      disabled={cancelRequestMutation.isPending}
+                      data-testid={`button-delete-rejected-${roleRequest.id}`}
+                    >
+                      Delete & Apply Again
+                    </Button>
+                  )}
                 </div>
               </div>
-            )}
-
-            {roleRequest.status === "rejected" && roleRequest.rejectionNote && (
-              <div className="bg-red-100 border border-red-300 rounded p-3 text-sm">
-                <p className="font-medium text-red-900 mb-1">Rejection Reason:</p>
-                <p className="text-red-800">{roleRequest.rejectionNote}</p>
-              </div>
-            )}
-
-            {roleRequest.status === "pending" && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => cancelRequestMutation.mutate(roleRequest.id)}
-                disabled={cancelRequestMutation.isPending}
-                data-testid="button-cancel-request"
-              >
-                Cancel Request
-              </Button>
-            )}
-
-            {roleRequest.status === "rejected" && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => cancelRequestMutation.mutate(roleRequest.id)}
-                disabled={cancelRequestMutation.isPending}
-                data-testid="button-delete-rejected"
-              >
-                Delete & Apply Again
-              </Button>
-            )}
+            ))}
           </CardContent>
         </Card>
       )}
 
       {/* Role Selection Section */}
-      {(!roleRequest || roleRequest.status !== "pending") && (
-        <div>
+      <div>
           <h2 className="text-xl font-semibold mb-4">Select Your Role</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {roles.map((role) => {
@@ -281,7 +288,6 @@ export default function UserDashboard() {
             })}
           </div>
         </div>
-      )}
 
       {/* Role Application Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>

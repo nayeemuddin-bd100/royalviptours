@@ -13,8 +13,11 @@ import { CheckCircle2, XCircle, Clock, Eye } from "lucide-react";
 type RoleRequest = {
   id: string;
   userId: string;
+  tenantId: string;
   userName: string;
   userEmail: string;
+  tenantName: string;
+  tenantCountryCode: string;
   requestType: string;
   status: "pending" | "approved" | "rejected";
   data?: Record<string, any>;
@@ -114,10 +117,14 @@ export default function RoleRequestsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Requested Role</p>
-                      <p className="font-medium capitalize">{request.requestType.replace("_", " ")}</p>
+                      <p className="font-medium capitalize">{request.requestType?.replace("_", " ") || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Country</p>
+                      <p className="font-medium">{request.tenantName || request.tenantCountryCode || "N/A"}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Requested On</p>
@@ -200,7 +207,7 @@ export default function RoleRequestsPage() {
                     <div className="flex-1">
                       <p className="font-medium">{request.userName}</p>
                       <p className="text-sm text-muted-foreground">
-                        {request.userEmail} • {request.requestType.replace("_", " ")}
+                        {request.userEmail} • {request.requestType?.replace("_", " ") || "N/A"} • {request.tenantName || request.tenantCountryCode || "N/A"}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -260,7 +267,11 @@ export default function RoleRequestsPage() {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-muted-foreground">Role Type</p>
-                    <p className="font-medium capitalize">{selectedRequest.requestType.replace("_", " ")}</p>
+                    <p className="font-medium capitalize">{selectedRequest.requestType?.replace("_", " ") || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Country</p>
+                    <p className="font-medium">{selectedRequest.tenantName || selectedRequest.tenantCountryCode || "N/A"}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Status</p>
