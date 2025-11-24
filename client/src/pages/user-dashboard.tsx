@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +18,14 @@ export default function UserDashboard() {
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState<Record<string, any>>({});
+
+  const { data: tenants = [] } = useQuery({
+    queryKey: ["/api/tenants"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/tenants");
+      return await res.json();
+    },
+  });
 
   const { data: roleRequest, isLoading: requestLoading, refetch } = useQuery({
     queryKey: ["/api/role-requests/my-request"],
@@ -311,12 +320,18 @@ export default function UserDashboard() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Country *</label>
-                  <Input
-                    placeholder="Country of operation"
-                    value={formData.country || ""}
-                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                    data-testid="input-country"
-                  />
+                  <Select value={formData.country || ""} onValueChange={(value) => setFormData({ ...formData, country: value })}>
+                    <SelectTrigger data-testid="input-country">
+                      <SelectValue placeholder="Select a country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenants.map((tenant: any) => (
+                        <SelectItem key={tenant.countryCode} value={tenant.countryCode}>
+                          {tenant.countryCode}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Type</label>
@@ -351,12 +366,18 @@ export default function UserDashboard() {
               <>
                 <div>
                   <label className="block text-sm font-medium mb-1">Country *</label>
-                  <Input
-                    placeholder="Country of operation"
-                    value={formData.country || ""}
-                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                    data-testid="input-supplier-country"
-                  />
+                  <Select value={formData.country || ""} onValueChange={(value) => setFormData({ ...formData, country: value })}>
+                    <SelectTrigger data-testid="input-supplier-country">
+                      <SelectValue placeholder="Select a country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenants.map((tenant: any) => (
+                        <SelectItem key={tenant.countryCode} value={tenant.countryCode}>
+                          {tenant.countryCode}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Company/Business Name</label>
