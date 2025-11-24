@@ -1665,29 +1665,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== RFQ Routes (Generic for both Agency and User) =====
 
-  // DEBUG endpoint to check events for an itinerary
-  app.get("/api/debug/itinerary/:id/events", requireAuth, async (req: AuthRequest, res, next) => {
-    try {
-      const { id } = req.params;
-      const events = await db
-        .select()
-        .from(itineraryEvents)
-        .where(eq(itineraryEvents.itineraryId, id));
-      
-      res.json({
-        count: events.length,
-        events: events.map(e => ({
-          id: e.id,
-          eventType: e.eventType,
-          eventTypeType: typeof e.eventType,
-          summary: e.summary,
-        })),
-      });
-    } catch (error: any) {
-      next(error);
-    }
-  });
-
   // Generic RFQ creation endpoint - supports both agency contacts and regular users
   app.post("/api/rfqs", requireAuth, async (req: AuthRequest, res, next) => {
     try {
@@ -1774,12 +1751,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sight: [],
       };
 
-      console.log('[RFQ DEBUG] Total events:', events.length);
       events.forEach(event => {
-        console.log('[RFQ DEBUG] Event:', { id: event.id, eventType: event.eventType });
         const type = event.eventType.toLowerCase();
         if (type.includes('transfer') || type.includes('transport')) {
-          console.log('[RFQ DEBUG] Matched transport event');
           eventsByType.transport.push(event);
         } else if (type.includes('accommodation') || type.includes('hotel') || type.includes('meal')) {
           eventsByType.hotel.push(event);
@@ -1788,12 +1762,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else if (type.includes('sight') || type.includes('attraction') || type.includes('activity')) {
           eventsByType.sight.push(event);
         }
-      });
-      console.log('[RFQ DEBUG] Events by type:', {
-        transport: eventsByType.transport.length,
-        hotel: eventsByType.hotel.length,
-        guide: eventsByType.guide.length,
-        sight: eventsByType.sight.length,
       });
 
       // Get suppliers for each type in this tenant
@@ -1821,10 +1789,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const segments: any[] = [];
 
       // Transport segments
-      console.log('[RFQ DEBUG] Creating transport segments. Event count:', eventsByType.transport.length, 'Company count:', transportCompaniesData.length);
       if (eventsByType.transport.length > 0) {
         for (const supplier of transportCompaniesData) {
-          console.log('[RFQ DEBUG] Creating segment for transport company:', supplier.id, supplier.name);
           const [segment] = await db
             .insert(rfqSegments)
             .values({
@@ -1835,7 +1801,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               status: "pending",
             })
             .returning();
-          console.log('[RFQ DEBUG] Created segment:', segment.id);
           segments.push(segment);
         }
       }
@@ -1976,12 +1941,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sight: [],
       };
 
-      console.log('[RFQ DEBUG] Total events:', events.length);
       events.forEach(event => {
-        console.log('[RFQ DEBUG] Event:', { id: event.id, eventType: event.eventType });
         const type = event.eventType.toLowerCase();
         if (type.includes('transfer') || type.includes('transport')) {
-          console.log('[RFQ DEBUG] Matched transport event');
           eventsByType.transport.push(event);
         } else if (type.includes('accommodation') || type.includes('hotel') || type.includes('meal')) {
           eventsByType.hotel.push(event);
@@ -1990,12 +1952,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else if (type.includes('sight') || type.includes('attraction') || type.includes('activity')) {
           eventsByType.sight.push(event);
         }
-      });
-      console.log('[RFQ DEBUG] Events by type:', {
-        transport: eventsByType.transport.length,
-        hotel: eventsByType.hotel.length,
-        guide: eventsByType.guide.length,
-        sight: eventsByType.sight.length,
       });
 
       // Get suppliers for each type in this tenant
