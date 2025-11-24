@@ -4,36 +4,55 @@
 
 Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline ground operations and travel quotations within the B2B travel sector. It connects local suppliers (transport, hotels, guides, sights) with global travel agencies to facilitate complex itinerary creation and accurate quote generation via an RFQ workflow. The platform acts as a productivity tool for information management, fostering efficient collaboration between country managers and travel agencies.
 
-## Recent Changes (Nov 22, 2025)
+## Recent Changes (Nov 24, 2025)
 
-### Meal Plans Implementation
-- **Schema Update:** Changed meal plans from hotel-specific to tenant-wide static data
-  - Removed `hotelId` from meal plans table
-  - Added unique constraint on `(tenantId, code)` instead of `(hotelId, code)`
-- **Seed Data:** Created 5 standard meal plans for each tenant:
-  - **RO** - Room Only (no meals)
-  - **BB** - Bed & Breakfast  
-  - **HB** - Half Board (breakfast + dinner)
-  - **FB** - Full Board (all meals)
-  - **AI** - All Inclusive (meals + drinks)
-- **Backend:** Added `/api/meal-plans` endpoint to fetch tenant meal plans
-- **Frontend:** Hotel rate creation now shows meal plans in dropdown (Room Type also uses dropdown)
-- **Bug Fix:** Removed `parseFloat()` conversion for `pricePerNight` to maintain string type for backend precision
+### Role-Based Registration System
+- **Schema Update:** Added new `roleRequests` table to track role change requests
+  - **Fields:** id, userId (FK), requestType (enum), status (pending/approved/rejected), rejectionNote, createdAt, updatedAt
+  - **Constraint:** Unique constraint on userId ensures only one active request per user
+  - **Enums:** `roleRequestStatusEnum` (pending/approved/rejected), `roleRequestTypeEnum` (travel_agent/transport/hotel/guide/sight)
+- **Registration Flow:** All users start as "Normal Users" (role='user')
+  - Simplified registration to single form: name, email, password, confirm password
+  - Removed complex 4-step travel agency registration flow
+  - New registration schema: `registerSchema` validates password confirmation
+- **Backend APIs:** Added 7 role request endpoints
+  - `POST /api/role-requests` - Create role change request (enforces single active request)
+  - `GET /api/role-requests/my-request` - View current request status
+  - `DELETE /api/role-requests/:id` - Cancel pending request
+  - `GET /api/admin/role-requests` - Admin lists all requests (pending + processed)
+  - `POST /api/admin/role-requests/:id/approve` - Approve request and update user role
+  - `POST /api/admin/role-requests/:id/reject` - Reject with optional notes
+- **Frontend Changes:**
+  - **Auth Page:** Simplified to basic login/registration (removed agency login option)
+  - **Normal User Dashboard:** Shows role selection cards (Travel Agency, Transport, Hotel, Guide, Sight)
+    - Displays current request status with ability to view notes
+    - Allows canceling pending requests
+    - One role option active at a time
+  - **Admin Page:** `/admin/role-requests` manages all requests
+    - Pending requests show in primary view with textareas for rejection notes
+    - Processed requests shown in secondary "Processed" section
+    - Action buttons: Approve, Reject with notes
+- **Home Page Routing:** Updated redirect logic
+  - Normal users (role='user') → Redirect to `/user-dashboard`
+  - Admin users (role='admin') → Stay on home page
+  - Travel agents → Redirect to `/agency`
+  - Suppliers → Redirect to `/supplier`
+  - Country managers → Redirect to `/country-manager/catalog`
+- **Database:** Successfully pushed schema changes, `roleRequests` table created
 
-### Auth Flow Improvements
-- **Bug Fix:** Fixed sidebar menu showing incorrect items after login
-  - Added automatic page reload after successful login/registration
-  - Ensures all auth state and tenant data is fresh on page load
-  - Sidebar now correctly displays supplier/agency menus immediately after login
+### Previous Session Changes (Nov 22, 2025)
 
-### Supplier Account Creation Enhancement
-- **Feature:** Admin-created supplier accounts now automatically create their associated company
-  - **Transport suppliers** → Creates transport company with name "${userName}'s Transport Company"
-  - **Hotel suppliers** → Creates hotel with name "${userName}'s Hotel"  
-  - **Guide suppliers** → Creates tour guide with name "${userName}"
-  - **Sight suppliers** → Creates sight with name "${userName}'s Sight"
-  - All companies are linked via `ownerId` field to the supplier user
-  - Suppliers can immediately start managing their company after first login
+#### Meal Plans Implementation
+- Changed meal plans from hotel-specific to tenant-wide static data
+- Seed data for 5 standard meal plans: RO, BB, HB, FB, AI
+- Backend endpoint: `/api/meal-plans`
+- Frontend dropdown for hotel rate creation
+
+#### Auth Flow Improvements
+- Fixed sidebar menu after login with automatic page reload
+
+#### Supplier Account Creation
+- Auto-create company on admin account creation with owner link
 
 ## User Preferences
 
