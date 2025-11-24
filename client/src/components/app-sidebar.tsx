@@ -90,13 +90,19 @@ const normalUserItems = [
   { title: "Invitations", url: "/user/invitations", icon: Mail },
 ];
 
-// Agency navigation items
+// Agency navigation items (for agency contacts)
 const agencyItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "My Itineraries", url: "/itineraries", icon: Calendar },
   { title: "RFQs", url: "/rfqs", icon: FileText },
   { title: "Quotes", url: "/quotes", icon: ClipboardList },
   { title: "Account", url: "/agency/account", icon: Building2 },
+];
+
+// Team Member navigation items (limited access)
+const teamMemberItems = [
+  { title: "My Itineraries", url: "/itineraries", icon: Calendar },
+  { title: "RFQs", url: "/rfqs", icon: FileText },
 ];
 
 interface UserTenant {
@@ -151,7 +157,7 @@ export function AppSidebar() {
 
     // Check if user is an active team member
     if (teamMembership && teamMembership.isActive) {
-      return agencyItems;
+      return teamMemberItems;
     }
 
     // Check tenant roles first (multi-tenant architecture)
