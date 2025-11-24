@@ -246,8 +246,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/role-requests", requireAuth, async (req: AuthRequest, res, next) => {
     try {
-      const { requestType } = z.object({
+      const { requestType, data } = z.object({
         requestType: z.enum(["travel_agent", "transport", "hotel", "guide", "sight"]),
+        data: z.record(z.any()).optional(),
       }).parse(req.body);
 
       // Check if user already has a pending request
@@ -269,6 +270,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId: req.user!.id,
           requestType: requestType as any,
           status: "pending",
+          data: data || null,
         })
         .returning();
 
@@ -319,6 +321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId: roleRequests.userId,
           requestType: roleRequests.requestType,
           status: roleRequests.status,
+          data: roleRequests.data,
           rejectionNote: roleRequests.rejectionNote,
           createdAt: roleRequests.createdAt,
           userName: users.name,

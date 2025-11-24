@@ -80,6 +80,7 @@ export const roleRequests = pgTable("role_requests", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   requestType: roleRequestTypeEnum("request_type").notNull(),
   status: roleRequestStatusEnum("status").notNull().default("pending"),
+  data: jsonb("data"), // Stores role-specific data (agency info, supplier info, etc.)
   rejectionNote: text("rejection_note"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

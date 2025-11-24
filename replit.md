@@ -4,7 +4,31 @@
 
 Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline ground operations and travel quotations within the B2B travel sector. It connects local suppliers (transport, hotels, guides, sights) with global travel agencies to facilitate complex itinerary creation and accurate quote generation via an RFQ workflow. The platform acts as a productivity tool for information management, fostering efficient collaboration between country managers and travel agencies.
 
-## Recent Changes (Nov 24, 2025)
+## Recent Changes (Nov 24, 2025 - Latest)
+
+### Enhanced Role Request System with Data Collection
+- **Database Update:** Added `data` jsonb field to `roleRequests` table to store role-specific information
+- **User Dashboard Enhancements:**
+  - Added "Request History" section showing current request status (pending/approved/rejected)
+  - Displays submitted data from user's role application
+  - Modal forms for collecting necessary information:
+    - **Travel Agency Modal:** Legal Name, Trade Name, Country, Type, Website, Description
+    - **Supplier Modal:** Country, Business Name, Email, Phone, Description
+  - Users can cancel pending requests or delete rejected requests to reapply
+- **Admin Page Improvements:**
+  - Admin can now see submitted data for each role request
+  - Added "View Details" button to view complete submitted information in a modal
+  - Displays summary of submitted data on pending requests list
+  - Both pending and processed requests show submitted information
+- **Backend API Updates:**
+  - `POST /api/role-requests` now accepts optional `data` field with form information
+  - `GET /api/admin/role-requests` returns the submitted `data` field for display
+- **Workflow:**
+  - User selects role → Opens modal with role-specific form → Submits with data
+  - Admin reviews request and submitted data → Approves/Rejects with optional notes
+  - User can see submission status and feedback in dashboard
+
+## Previous Session Changes (Nov 24, 2025)
 
 ### Role-Based Registration System
 - **Schema Update:** Added new `roleRequests` table to track role change requests
