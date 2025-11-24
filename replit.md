@@ -39,6 +39,16 @@ Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline gro
   - Suppliers → Redirect to `/supplier`
   - Country managers → Redirect to `/country-manager/catalog`
 - **Database:** Successfully pushed schema changes, `roleRequests` table created
+- **E2E Tests:** All 7 tests passing (100% success rate)
+  - ✅ User Registration - All users start as "user" role
+  - ✅ Travel Agency Request - Users can apply for travel_agent role
+  - ✅ Supplier Request - Users can apply for transport/hotel/guide/sight roles
+  - ✅ Admin Views Requests - Admin can view all pending and processed requests
+  - ✅ Admin Approval - Admin approves requests and updates user role
+  - ✅ Admin Rejection - Admin rejects with optional notes, users see feedback
+  - ✅ User Cancels - Users can cancel pending requests and reapply
+- **Constraint Enforcement:** Single pending request per user enforced at database level
+- **User Role Enum Updated:** Extended to include travel_agent, transport, hotel, guide, sight
 
 ### Previous Session Changes (Nov 22, 2025)
 
