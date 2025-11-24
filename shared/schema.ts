@@ -207,7 +207,8 @@ export const agencyTeamMembers = pgTable("agency_team_members", {
   deactivatedAt: timestamp("deactivated_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
-  uniqueAgencyUser: unique().on(table.agencyId, table.userId)
+  uniqueAgencyUser: unique().on(table.agencyId, table.userId),
+  uniqueUser: unique().on(table.userId) // Enforce exclusive membership: one user can only be in ONE agency
 }));
 
 // === Tenant-scoped Catalog Tables ===
