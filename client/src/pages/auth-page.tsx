@@ -13,9 +13,9 @@ export default function AuthPage() {
   const [, setLocation] = useLocation();
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [userType, setUserType] = useState<"user" | "agency">("user");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
+  const [registerPasswordConfirm, setRegisterPasswordConfirm] = useState("");
   const [registerName, setRegisterName] = useState("");
 
   // Redirect if already logged in - using useEffect to avoid setting state during render
@@ -31,7 +31,6 @@ export default function AuthPage() {
       await loginMutation.mutateAsync({
         email: loginEmail,
         password: loginPassword,
-        userType,
       });
     } catch (error) {
       // Error is handled by mutation's onError callback
@@ -40,10 +39,14 @@ export default function AuthPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (registerPassword !== registerPasswordConfirm) {
+      return;
+    }
     try {
       await registerMutation.mutateAsync({
         email: registerEmail,
         password: registerPassword,
+        passwordConfirm: registerPasswordConfirm,
         name: registerName,
       });
     } catch (error) {
@@ -82,26 +85,6 @@ export default function AuthPage() {
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleLogin} className="space-y-4">
-                    <div className="flex gap-2 p-1 bg-muted rounded-lg">
-                      <Button
-                        type="button"
-                        variant={userType === "user" ? "default" : "ghost"}
-                        className="flex-1"
-                        onClick={() => setUserType("user")}
-                        data-testid="button-user-type-supplier"
-                      >
-                        Supplier Login
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={userType === "agency" ? "default" : "ghost"}
-                        className="flex-1"
-                        onClick={() => setUserType("agency")}
-                        data-testid="button-user-type-agency"
-                      >
-                        Agency Login
-                      </Button>
-                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="login-email">Email</Label>
                       <Input
@@ -144,24 +127,25 @@ export default function AuthPage() {
                 <CardHeader className="space-y-1">
                   <CardTitle className="text-xl">Create an account</CardTitle>
                   <CardDescription>
-                    Join Royal VIP Tours and start managing your travel operations
+                    Join Royal VIP Tours as a Normal User
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleRegister} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="register-name">Full Name</Label>
+                      <Label htmlFor="register-name">Full Name *</Label>
                       <Input
                         id="register-name"
                         type="text"
                         placeholder="John Doe"
                         value={registerName}
                         onChange={(e) => setRegisterName(e.target.value)}
+                        required
                         data-testid="input-register-name"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="register-email">Email</Label>
+                      <Label htmlFor="register-email">Email *</Label>
                       <Input
                         id="register-email"
                         type="email"
@@ -173,7 +157,7 @@ export default function AuthPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="register-password">Password</Label>
+                      <Label htmlFor="register-password">Password *</Label>
                       <Input
                         id="register-password"
                         type="password"
@@ -182,6 +166,18 @@ export default function AuthPage() {
                         onChange={(e) => setRegisterPassword(e.target.value)}
                         required
                         data-testid="input-register-password"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="register-password-confirm">Confirm Password *</Label>
+                      <Input
+                        id="register-password-confirm"
+                        type="password"
+                        placeholder="••••••••"
+                        value={registerPasswordConfirm}
+                        onChange={(e) => setRegisterPasswordConfirm(e.target.value)}
+                        required
+                        data-testid="input-register-password-confirm"
                       />
                     </div>
                     <Button
@@ -197,24 +193,6 @@ export default function AuthPage() {
               </Card>
             </TabsContent>
           </Tabs>
-
-          {/* Travel Agency Registration Link */}
-          <Card className="border-primary/20">
-            <CardContent className="pt-6">
-              <div className="text-center space-y-3">
-                <Building2 className="h-8 w-8 text-primary mx-auto" />
-                <h3 className="font-semibold">Are you a Travel Agency?</h3>
-                <p className="text-sm text-muted-foreground">
-                  Register your travel agency to access our B2B platform and start requesting quotes from local suppliers
-                </p>
-                <Link href="/register/agency">
-                  <Button variant="outline" className="w-full" data-testid="link-agency-registration">
-                    Register as Travel Agency
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
 

@@ -5,13 +5,13 @@ import {
   users, tenants, userTenants, cities, airports, eventCategories, amenities,
   transportCompanies, transportProducts, fleets, hotels, roomTypes, mealPlans, hotelRates,
   tourGuides, sights, itineraries, itineraryDays, itineraryEvents, 
-  rfqs, rfqSegments, quotes, agencies, agencyContacts, agencyAddresses, auditLogs,
+  rfqs, rfqSegments, quotes, agencies, agencyContacts, agencyAddresses, auditLogs, roleRequests,
   insertUserSchema, insertTenantSchema, insertCitySchema, insertAirportSchema,
   insertEventCategorySchema, insertAmenitySchema, insertTransportCompanySchema,
   insertTransportProductSchema, insertHotelSchema, insertRoomTypeSchema,
   insertMealPlanSchema, insertHotelRateSchema, insertTourGuideSchema,
   insertSightSchema, insertItinerarySchema, insertItineraryEventSchema,
-  insertRfqSchema, insertAgencySchema
+  insertRfqSchema, insertAgencySchema, insertRoleRequestSchema, registerSchema
 } from "@shared/schema";
 import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import { hashPassword, comparePassword, generateAccessToken, generateRefreshToken, verifyRefreshToken, revokeRefreshToken, revokeAllUserTokens, verifyToken, requireAuth, requireRole, requireTenantRole, requireAgencyContact, getAgencyIdForUser, type AuthRequest } from "./lib/auth";
@@ -68,7 +68,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post("/api/register", async (req, res, next) => {
     try {
-      const body = insertUserSchema.parse(req.body);
+      const body = registerSchema.parse(req.body);
       const existingUser = await db.select().from(users).where(eq(users.email, body.email));
       
       if (existingUser.length > 0) {
@@ -76,8 +76,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const [user] = await db.insert(users).values({
-        ...body,
+        name: body.name,
+        email: body.email,
         password: hashPassword(body.password),
+        role: "user",
         status: "active",
       }).returning();
 
@@ -238,6 +240,161 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/user", requireAuth, async (req: AuthRequest, res) => {
     const { password, ...userWithoutPassword } = req.user!;
     res.json(userWithoutPassword);
+  });
+
+  // ===== Role Request Routes =====
+
+  app.post("/api/role-requests", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { requestType } = z.object({
+        requestType: z.enum(["travel_agent", "transport", "hotel", "guide", "sight"]),
+      }).parse(req.body);
+
+      // Check if user already has a pending/approved request
+      const [existing] = await db
+        .select()
+        .from(roleRequests)
+        .where(eq(roleRequests.userId, req.user!.id));
+
+      if (existing) {
+        return res.status(400).json({ message: "You already have an active role request" });
+      }
+
+      const [request] = await db
+        .insert(roleRequests)
+        .values({
+          userId: req.user!.id,
+          requestType: requestType as any,
+          status: "pending",
+        })
+        .returning();
+
+      res.json(request);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/role-requests/my-request", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const [request] = await db
+        .select()
+        .from(roleRequests)
+        .where(eq(roleRequests.userId, req.user!.id));
+
+      res.json(request || null);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/role-requests/:id", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      
+      const [request] = await db
+        .select()
+        .from(roleRequests)
+        .where(eq(roleRequests.id, id));
+
+      if (!request || request.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      await db.delete(roleRequests).where(eq(roleRequests.id, id));
+      res.json({ message: "Request canceled" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/admin/role-requests", requireAuth, requireRole("admin"), async (req: AuthRequest, res, next) => {
+    try {
+      const requests = await db
+        .select({
+          id: roleRequests.id,
+          userId: roleRequests.userId,
+          requestType: roleRequests.requestType,
+          status: roleRequests.status,
+          rejectionNote: roleRequests.rejectionNote,
+          createdAt: roleRequests.createdAt,
+          userName: users.name,
+          userEmail: users.email,
+        })
+        .from(roleRequests)
+        .leftJoin(users, eq(roleRequests.userId, users.id))
+        .orderBy(desc(roleRequests.createdAt));
+
+      res.json(requests);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/admin/role-requests/:id/approve", requireAuth, requireRole("admin"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+
+      const [request] = await db
+        .select()
+        .from(roleRequests)
+        .where(eq(roleRequests.id, id));
+
+      if (!request) {
+        return res.status(404).json({ message: "Request not found" });
+      }
+
+      // Update request status
+      await db
+        .update(roleRequests)
+        .set({ status: "approved" })
+        .where(eq(roleRequests.id, id));
+
+      // Update user role based on request type
+      const roleMap: Record<string, any> = {
+        travel_agent: "travel_agent",
+        transport: "transport",
+        hotel: "hotel",
+        guide: "guide",
+        sight: "sight",
+      };
+
+      await db
+        .update(users)
+        .set({ role: roleMap[request.requestType] || "user" })
+        .where(eq(users.id, request.userId));
+
+      res.json({ message: "Request approved" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/admin/role-requests/:id/reject", requireAuth, requireRole("admin"), async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const { rejectionNote } = z.object({
+        rejectionNote: z.string().optional(),
+      }).parse(req.body);
+
+      const [request] = await db
+        .select()
+        .from(roleRequests)
+        .where(eq(roleRequests.id, id));
+
+      if (!request) {
+        return res.status(404).json({ message: "Request not found" });
+      }
+
+      await db
+        .update(roleRequests)
+        .set({ status: "rejected", rejectionNote: rejectionNote || null })
+        .where(eq(roleRequests.id, id));
+
+      res.json({ message: "Request rejected" });
+    } catch (error: any) {
+      next(error);
+    }
   });
 
   // Get agency contact details

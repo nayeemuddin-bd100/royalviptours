@@ -10,9 +10,11 @@ import { AppSidebar } from "@/components/app-sidebar";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import HomePage from "@/pages/home-page";
+import UserDashboard from "@/pages/user-dashboard";
 import TenantsPage from "@/pages/admin/tenants-page";
 import UsersPage from "@/pages/admin/users-page";
 import AuditLogsPage from "@/pages/admin/audit-logs-page";
+import RoleRequestsPage from "@/pages/admin/role-requests-page";
 import ItinerariesPage from "@/pages/itineraries-page";
 import QuotesPage from "@/pages/quotes-page";
 import AgencyRegistrationPage from "@/pages/agency-registration-page";
@@ -33,9 +35,11 @@ function Router() {
       <Route path="/auth" component={AuthPage} />
       <Route path="/register/agency" component={AgencyRegistrationPage} />
       <ProtectedRoute path="/" component={HomePage} />
+      <ProtectedRoute path="/user-dashboard" component={UserDashboard} />
       <ProtectedRoute path="/admin/tenants" component={TenantsPage} />
       <ProtectedRoute path="/admin/users" component={UsersPage} />
       <ProtectedRoute path="/admin/audit" component={AuditLogsPage} />
+      <ProtectedRoute path="/admin/role-requests" component={RoleRequestsPage} />
       <ProtectedRoute path="/supplier" component={SupplierDashboard} />
       <ProtectedRoute path="/supplier/rfq-inbox" component={SupplierRfqInboxPage} />
       <ProtectedRoute path="/country-manager/catalog" component={CountryManagerCatalogPage} />

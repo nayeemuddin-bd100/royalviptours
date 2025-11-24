@@ -22,6 +22,8 @@ export const itineraryStatusEnum = pgEnum("itinerary_status", ["draft", "request
 export const rfqStatusEnum = pgEnum("rfq_status", ["open", "in_progress", "supplier_pending", "quoted", "declined"]);
 export const supplierTypeEnum = pgEnum("supplier_type", ["transport", "hotel", "guide", "sight"]);
 export const segmentStatusEnum = pgEnum("segment_status", ["pending", "supplier_review", "supplier_proposed", "accepted", "rejected"]);
+export const roleRequestStatusEnum = pgEnum("role_request_status", ["pending", "approved", "rejected"]);
+export const roleRequestTypeEnum = pgEnum("role_request_type", ["travel_agent", "transport", "hotel", "guide", "sight"]);
 export const auditActionEnum = pgEnum("audit_action", [
   "user_created", "user_updated", "user_deleted", "user_login", "user_logout",
   "tenant_created", "tenant_updated", "tenant_deleted",
@@ -72,6 +74,18 @@ export const auditLogs = pgTable("audit_logs", {
   userAgent: text("user_agent"), // Browser/client user agent
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+export const roleRequests = pgTable("role_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  requestType: roleRequestTypeEnum("request_type").notNull(),
+  status: roleRequestStatusEnum("status").notNull().default("pending"),
+  rejectionNote: text("rejection_note"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueUserRequest: unique().on(table.userId)
+}));
 
 export const tenants = pgTable("tenants", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -599,6 +613,18 @@ export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true, ten
 // Insert schemas
 export const insertRefreshTokenSchema = createInsertSchema(refreshTokens).omit({ id: true, createdAt: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
+export const insertRoleRequestSchema = createInsertSchema(roleRequests).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Registration schema
+export const registerSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(6),
+  passwordConfirm: z.string().min(6),
+}).refine((data) => data.password === data.passwordConfirm, {
+  message: "Passwords don't match",
+  path: ["passwordConfirm"],
+});
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -645,3 +671,5 @@ export type Quote = typeof quotes.$inferSelect;
 export type InsertQuote = z.infer<typeof insertQuoteSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type RoleRequest = typeof roleRequests.$inferSelect;
+export type InsertRoleRequest = z.infer<typeof insertRoleRequestSchema>;
