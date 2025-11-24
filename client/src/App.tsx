@@ -19,6 +19,7 @@ import ItinerariesPage from "@/pages/itineraries-page";
 import QuotesPage from "@/pages/quotes-page";
 import AgencyRegistrationPage from "@/pages/agency-registration-page";
 import SupplierDashboard from "@/pages/supplier-dashboard";
+import SupplierCatalog from "@/pages/supplier-catalog";
 import AgencyDashboard from "@/pages/agency-dashboard";
 import AgencyAccountPage from "@/pages/agency-account-page";
 import AgencyItinerariesPage from "@/pages/agency-itineraries-page";
@@ -41,6 +42,7 @@ function Router() {
       <ProtectedRoute path="/admin/audit" component={AuditLogsPage} />
       <ProtectedRoute path="/admin/role-requests" component={RoleRequestsPage} />
       <ProtectedRoute path="/supplier" component={SupplierDashboard} />
+      <ProtectedRoute path="/supplier/catalog" component={SupplierCatalog} />
       <ProtectedRoute path="/supplier/rfq-inbox" component={SupplierRfqInboxPage} />
       <ProtectedRoute path="/country-manager/catalog" component={CountryManagerCatalogPage} />
       <ProtectedRoute path="/agency" component={AgencyDashboard} />

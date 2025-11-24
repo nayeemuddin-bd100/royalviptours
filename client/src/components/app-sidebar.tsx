@@ -46,8 +46,8 @@ const adminItems = [
 
 // Supplier navigation items (generic for all supplier types)
 const supplierItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "My Catalog", url: "/supplier", icon: Building2 },
+  { title: "Dashboard", url: "/supplier", icon: LayoutDashboard },
+  { title: "My Catalog", url: "/supplier/catalog", icon: Building2 },
   { title: "RFQ Inbox", url: "/supplier/rfq-inbox", icon: FileText },
 ];
 
