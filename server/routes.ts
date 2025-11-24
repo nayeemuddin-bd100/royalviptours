@@ -1049,22 +1049,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get all users who don't have a tenant role in ANY tenant
-      // and are not already team members of ANY agency or have pending invitations to ANY agency
+      // and are not already ACTIVE team members of ANY agency or have PENDING invitations to ANY agency
       // This enforces the exclusive membership rule: one user can only be part of one agency team
-      const usersWithTenantRole = db
+      
+      // Execute subqueries to get arrays of excluded user IDs
+      const usersWithTenantRoleResults = await db
         .select({ userId: userTenants.userId })
         .from(userTenants);
+      const usersWithTenantRole = usersWithTenantRoleResults.map(r => r.userId);
 
-      const existingTeamMembers = db
+      // Only exclude ACTIVE team members (deactivated members can be invited again)
+      const existingTeamMembersResults = await db
         .select({ userId: agencyTeamMembers.userId })
-        .from(agencyTeamMembers);
+        .from(agencyTeamMembers)
+        .where(eq(agencyTeamMembers.isActive, true));
+      const existingTeamMembers = existingTeamMembersResults.map(r => r.userId);
 
-      const pendingInvitations = db
+      // Only exclude users with PENDING invitations (rejected/expired can be reinvited)
+      const pendingInvitationsResults = await db
         .select({ userId: agencyInvitations.userId })
         .from(agencyInvitations)
         .where(eq(agencyInvitations.status, "pending"));
+      const pendingInvitations = pendingInvitationsResults.map(r => r.userId);
 
-      const availableUsers = await db
+      // Combine all excluded user IDs
+      const excludedUserIds = [...new Set([...usersWithTenantRole, ...existingTeamMembers, ...pendingInvitations])];
+
+      // Get available users
+      let query = db
         .select({
           id: users.id,
           name: users.name,
@@ -1072,12 +1084,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           role: users.role
         })
         .from(users)
-        .where(and(
-          eq(users.status, "active"),
-          notInArray(users.id, usersWithTenantRole),
-          notInArray(users.id, existingTeamMembers),
-          notInArray(users.id, pendingInvitations)
-        ));
+        .where(eq(users.status, "active"));
+
+      // Only apply notInArray if there are users to exclude
+      const availableUsers = excludedUserIds.length > 0
+        ? await query.where(notInArray(users.id, excludedUserIds))
+        : await query;
 
       res.json(availableUsers);
     } catch (error: any) {
@@ -1121,14 +1133,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "User already has a tenant role and cannot be a team member" });
       }
 
-      // Check if user is already a team member of ANY agency (exclusive membership rule)
+      // Check if user is already an ACTIVE team member of ANY agency (exclusive membership rule)
+      // Deactivated members can be invited to other agencies
       const [existingMember] = await db
         .select()
         .from(agencyTeamMembers)
-        .where(eq(agencyTeamMembers.userId, data.userId));
+        .where(and(
+          eq(agencyTeamMembers.userId, data.userId),
+          eq(agencyTeamMembers.isActive, true)
+        ));
 
       if (existingMember) {
-        return res.status(400).json({ message: "User is already a team member of another agency" });
+        return res.status(400).json({ message: "User is already an active team member of another agency" });
       }
 
       // Check for existing pending invitation to ANY agency
@@ -1313,35 +1329,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "You now have a tenant role and cannot be a team member" });
       }
 
-      // Verify user hasn't joined another agency since invitation was sent (exclusive membership rule)
+      // Verify user hasn't joined another agency as an ACTIVE member since invitation was sent
+      // Deactivated members can accept new invitations to different agencies
       const [existingMember] = await db
         .select()
         .from(agencyTeamMembers)
-        .where(eq(agencyTeamMembers.userId, userId));
+        .where(and(
+          eq(agencyTeamMembers.userId, userId),
+          eq(agencyTeamMembers.isActive, true)
+        ));
 
       if (existingMember) {
-        return res.status(400).json({ message: "You are already a team member of another agency" });
+        return res.status(400).json({ message: "You are already an active team member of another agency" });
       }
 
-      // Create team member record
-      const [teamMember] = await db.insert(agencyTeamMembers).values({
-        agencyId: invitation.agencyId,
-        userId: invitation.userId,
-        tenantId: invitation.tenantId,
-        addedBy: invitation.invitedBy,
-        isActive: true
-      }).returning();
+      // Create team member record - wrap in try/catch to handle unique constraint violations
+      try {
+        const [teamMember] = await db.insert(agencyTeamMembers).values({
+          agencyId: invitation.agencyId,
+          userId: invitation.userId,
+          tenantId: invitation.tenantId,
+          addedBy: invitation.invitedBy,
+          isActive: true
+        }).returning();
 
-      // Update invitation status
-      await db
-        .update(agencyInvitations)
-        .set({
-          status: "accepted",
-          respondedAt: new Date()
-        })
-        .where(eq(agencyInvitations.id, id));
+        // Update invitation status
+        await db
+          .update(agencyInvitations)
+          .set({
+            status: "accepted",
+            respondedAt: new Date()
+          })
+          .where(eq(agencyInvitations.id, id));
 
-      res.json({ message: "Invitation accepted", teamMember });
+        res.json({ message: "Invitation accepted", teamMember });
+      } catch (insertError: any) {
+        // Handle unique constraint violation (race condition where user accepted multiple invitations)
+        if (insertError.code === '23505') { // PostgreSQL unique violation
+          return res.status(409).json({ 
+            message: "You have already joined an agency. Each user can only be a member of one agency." 
+          });
+        }
+        throw insertError;
+      }
     } catch (error: any) {
       next(error);
     }
