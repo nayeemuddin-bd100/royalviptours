@@ -14,6 +14,17 @@ interface UserTenant {
   tenantStatus: string;
 }
 
+interface TeamMembership {
+  id: string;
+  agencyId: string;
+  agencyName: string;
+  agencyTradeName: string;
+  tenantId: string;
+  isActive: boolean;
+  joinedAt: string;
+  deactivatedAt: string | null;
+}
+
 export default function HomePage() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
@@ -21,6 +32,12 @@ export default function HomePage() {
   // Fetch user's tenant assignments to determine role
   const { data: userTenants = [], isLoading } = useQuery<UserTenant[]>({
     queryKey: ['/api/user/tenants'],
+    enabled: !!user && user.role !== 'admin',
+  });
+
+  // Check if user is a team member of an agency
+  const { data: teamMembership, isLoading: isLoadingTeam } = useQuery<TeamMembership | null>({
+    queryKey: ['/api/user/team-membership'],
     enabled: !!user && user.role !== 'admin',
   });
 
@@ -33,8 +50,14 @@ export default function HomePage() {
       return;
     }
 
-    // Wait for query to finish loading before redirecting
-    if (isLoading) return;
+    // Wait for queries to finish loading before redirecting
+    if (isLoading || isLoadingTeam) return;
+
+    // Check if user is an active team member
+    if (teamMembership && teamMembership.isActive) {
+      setLocation('/agency');
+      return;
+    }
 
     // Check if user has travel agent role
     const hasAgentRole = userTenants.some((ut) => ut.tenantRole === 'travel_agent');
@@ -64,7 +87,7 @@ export default function HomePage() {
 
     // If no tenant roles found, redirect to user dashboard
     setLocation('/user-dashboard');
-  }, [user, userTenants, setLocation, isLoading]);
+  }, [user, userTenants, teamMembership, setLocation, isLoading, isLoadingTeam]);
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">

@@ -108,6 +108,17 @@ interface UserTenant {
   tenantStatus: string;
 }
 
+interface TeamMembership {
+  id: string;
+  agencyId: string;
+  agencyName: string;
+  agencyTradeName: string;
+  tenantId: string;
+  isActive: boolean;
+  joinedAt: string;
+  deactivatedAt: string | null;
+}
+
 export function AppSidebar() {
   const { user, logoutMutation } = useAuth();
   const [location] = useLocation();
@@ -115,6 +126,12 @@ export function AppSidebar() {
   // Fetch user's tenant assignments to determine navigation
   const { data: userTenants, isLoading: isLoadingTenants } = useQuery<UserTenant[]>({
     queryKey: ['/api/user/tenants'],
+    enabled: !!user && user.role !== 'admin',
+  });
+
+  // Check if user is a team member of an agency
+  const { data: teamMembership, isLoading: isLoadingTeam } = useQuery<TeamMembership | null>({
+    queryKey: ['/api/user/team-membership'],
     enabled: !!user && user.role !== 'admin',
   });
 
@@ -128,8 +145,13 @@ export function AppSidebar() {
 
     // Wait for tenant data to load before determining navigation for non-admin users
     // This prevents showing the wrong menu items during the loading phase
-    if (isLoadingTenants) {
+    if (isLoadingTenants || isLoadingTeam) {
       return [];
+    }
+
+    // Check if user is an active team member
+    if (teamMembership && teamMembership.isActive) {
+      return agencyItems;
     }
 
     // Check tenant roles first (multi-tenant architecture)
@@ -184,7 +206,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {isLoadingTenants && user?.role !== 'admin' ? (
+              {(isLoadingTenants || isLoadingTeam) && user?.role !== 'admin' ? (
                 // Show loading skeleton while tenant data loads
                 <>
                   {[1, 2, 3, 4].map((i) => (

@@ -1371,6 +1371,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get user's team membership
+  app.get("/api/user/team-membership", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const userId = req.user!.id;
+
+      const [teamMembership] = await db
+        .select({
+          id: agencyTeamMembers.id,
+          agencyId: agencyTeamMembers.agencyId,
+          agencyName: agencies.legalName,
+          agencyTradeName: agencies.tradeName,
+          tenantId: agencyTeamMembers.tenantId,
+          isActive: agencyTeamMembers.isActive,
+          joinedAt: agencyTeamMembers.joinedAt,
+          deactivatedAt: agencyTeamMembers.deactivatedAt,
+        })
+        .from(agencyTeamMembers)
+        .leftJoin(agencies, eq(agencyTeamMembers.agencyId, agencies.id))
+        .where(and(
+          eq(agencyTeamMembers.userId, userId),
+          eq(agencyTeamMembers.isActive, true)
+        ));
+
+      res.json(teamMembership || null);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Agency itinerary management
   app.get("/api/agency/itineraries", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
     try {
