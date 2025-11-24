@@ -1082,7 +1082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalExcluded: excludedUserIds.length
       });
 
-      // Get available users - only normal users (no tenant roles, no active memberships, no pending invitations)
+      // Get available users - only normal users with role='user' (no admins, no tenant roles, no active memberships, no pending invitations)
       const availableUsers = excludedUserIds.length > 0
         ? await db
             .select({
@@ -1094,6 +1094,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .from(users)
             .where(and(
               eq(users.status, "active"),
+              eq(users.role, "user"), // Only normal users, exclude admins
               notInArray(users.id, excludedUserIds)
             ))
         : await db
@@ -1104,7 +1105,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               role: users.role
             })
             .from(users)
-            .where(eq(users.status, "active"));
+            .where(and(
+              eq(users.status, "active"),
+              eq(users.role, "user") // Only normal users, exclude admins
+            ));
 
       res.json(availableUsers);
     } catch (error: any) {
