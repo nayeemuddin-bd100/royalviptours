@@ -380,40 +380,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Request not found" });
       }
 
-      // Update request status
-      await db
-        .update(roleRequests)
-        .set({ status: "approved" })
-        .where(eq(roleRequests.id, id));
+      // Parse request.data safely (may be stored as JSON string in JSONB column)
+      const requestData = typeof request.data === 'string' 
+        ? JSON.parse(request.data) 
+        : (request.data as any) || {};
 
-      // Create or update userTenants record (tenant-specific role assignment)
-      const [existingUserTenant] = await db
-        .select()
-        .from(userTenants)
-        .where(and(
-          eq(userTenants.userId, request.userId),
-          eq(userTenants.tenantId, request.tenantId)
-        ));
+      // Wrap everything in a transaction to ensure atomicity
+      await db.transaction(async (tx) => {
+        // Update request status
+        await tx
+          .update(roleRequests)
+          .set({ status: "approved" })
+          .where(eq(roleRequests.id, id));
 
-      if (existingUserTenant) {
-        // Update existing tenant role
-        await db
-          .update(userTenants)
-          .set({ tenantRole: request.requestType as any })
+        // Create or update userTenants record (tenant-specific role assignment)
+        const [existingUserTenant] = await tx
+          .select()
+          .from(userTenants)
           .where(and(
             eq(userTenants.userId, request.userId),
             eq(userTenants.tenantId, request.tenantId)
           ));
-      } else {
-        // Create new tenant role assignment
-        await db
-          .insert(userTenants)
-          .values({
-            userId: request.userId,
-            tenantId: request.tenantId,
-            tenantRole: request.requestType as any,
-          });
-      }
+
+        if (existingUserTenant) {
+          // Update existing tenant role
+          await tx
+            .update(userTenants)
+            .set({ tenantRole: request.requestType as any })
+            .where(and(
+              eq(userTenants.userId, request.userId),
+              eq(userTenants.tenantId, request.tenantId)
+            ));
+        } else {
+          // Create new tenant role assignment
+          await tx
+            .insert(userTenants)
+            .values({
+              userId: request.userId,
+              tenantId: request.tenantId,
+              tenantRole: request.requestType as any,
+            });
+        }
+
+        // Auto-create supplier company for supplier roles
+        const supplierRoles = ['transport', 'hotel', 'guide', 'sight'];
+        
+        if (supplierRoles.includes(request.requestType)) {
+          const companyName = requestData.name || requestData.legalName || 'Unnamed Company';
+          const companyEmail = requestData.email || '';
+          const companyPhone = requestData.phone || '';
+          const companyDescription = requestData.description || '';
+
+          if (request.requestType === 'transport') {
+            // Check if transport company already exists for this user in this tenant
+            const [existingCompany] = await tx
+              .select()
+              .from(transportCompanies)
+              .where(and(
+                eq(transportCompanies.tenantId, request.tenantId),
+                eq(transportCompanies.ownerId, request.userId)
+              ));
+
+            if (!existingCompany) {
+              await tx.insert(transportCompanies).values({
+                tenantId: request.tenantId,
+                ownerId: request.userId,
+                name: companyName,
+                email: companyEmail,
+                phone: companyPhone,
+                description: companyDescription,
+              });
+            }
+          } else if (request.requestType === 'hotel') {
+            const [existingHotel] = await tx
+              .select()
+              .from(hotels)
+              .where(and(
+                eq(hotels.tenantId, request.tenantId),
+                eq(hotels.ownerId, request.userId)
+              ));
+
+            if (!existingHotel) {
+              await tx.insert(hotels).values({
+                tenantId: request.tenantId,
+                ownerId: request.userId,
+                name: companyName,
+                address: requestData.address || 'To be updated',
+                email: companyEmail,
+                phone: companyPhone,
+                description: companyDescription,
+              });
+            }
+          } else if (request.requestType === 'guide') {
+            const [existingGuide] = await tx
+              .select()
+              .from(tourGuides)
+              .where(and(
+                eq(tourGuides.tenantId, request.tenantId),
+                eq(tourGuides.ownerId, request.userId)
+              ));
+
+            if (!existingGuide) {
+              await tx.insert(tourGuides).values({
+                tenantId: request.tenantId,
+                ownerId: request.userId,
+                name: companyName,
+                email: companyEmail,
+                phone: companyPhone,
+                bio: companyDescription,
+                workScope: 'country',
+              });
+            }
+          } else if (request.requestType === 'sight') {
+            const [existingSight] = await tx
+              .select()
+              .from(sights)
+              .where(and(
+                eq(sights.tenantId, request.tenantId),
+                eq(sights.ownerId, request.userId)
+              ));
+
+            if (!existingSight) {
+              await tx.insert(sights).values({
+                tenantId: request.tenantId,
+                ownerId: request.userId,
+                name: companyName,
+                email: companyEmail,
+                phone: companyPhone,
+                description: companyDescription,
+              });
+            }
+          }
+        }
+      });
 
       // User's global role stays as "user" - role is now managed per tenant
 

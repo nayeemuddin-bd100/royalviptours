@@ -6,6 +6,22 @@ Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline gro
 
 ## Recent Changes (Nov 24, 2025 - Latest)
 
+### Auto-Create Supplier Companies on Role Approval (COMPLETED)
+- **Critical Bug Fix:** Suppliers weren't seeing RFQs after role approval because supplier companies weren't being created
+- **Root Cause:** Role approval created `userTenants` records but didn't create actual supplier company records (transportCompanies, hotels, tourGuides, sights)
+- **Solution:** Modified `/api/admin/role-requests/:id/approve` endpoint to auto-create supplier companies
+- **Implementation:**
+  - Detects supplier role types (transport, hotel, guide, sight)
+  - Extracts company info from `request.data` field (submitted during role application)
+  - Auto-creates appropriate supplier company record with `ownerId` set to approved user
+  - Includes duplicate checking to prevent multiple companies for same user+tenant
+  - Required fields handled: hotel `address` defaults to 'To be updated', guide `workScope` defaults to 'country'
+- **RFQ Routing:** Suppliers now appear in RFQ routing because they own companies
+  - RFQ creation finds all companies by type in tenant
+  - Creates segments linking RFQ to each company
+  - Supplier inbox filters segments by owned companies (`ownerId = userId`)
+- **Testing:** End-to-end tests confirm company auto-creation and RFQ visibility
+
 ### Multi-Tenant Role Request Architecture (COMPLETED)
 - **Critical Architecture Change:** Fully migrated from global role assignment to multi-tenant role system
 - **Database Schema:**
