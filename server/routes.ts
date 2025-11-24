@@ -487,7 +487,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 name: companyName,
                 email: companyEmail,
                 phone: companyPhone,
-                bio: companyDescription,
                 workScope: 'country',
               });
             }
