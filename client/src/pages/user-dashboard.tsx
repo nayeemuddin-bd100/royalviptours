@@ -327,7 +327,7 @@ export default function UserDashboard() {
                     <SelectContent>
                       {tenants.map((tenant: any) => (
                         <SelectItem key={tenant.countryCode} value={tenant.countryCode}>
-                          {tenant.countryCode}
+                          {tenant.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -373,7 +373,7 @@ export default function UserDashboard() {
                     <SelectContent>
                       {tenants.map((tenant: any) => (
                         <SelectItem key={tenant.countryCode} value={tenant.countryCode}>
-                          {tenant.countryCode}
+                          {tenant.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
