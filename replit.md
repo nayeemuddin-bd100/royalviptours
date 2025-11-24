@@ -6,6 +6,36 @@ Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline gro
 
 ## Recent Changes (Nov 24, 2025 - Latest)
 
+### Multi-Tenant Role Request Architecture (COMPLETED)
+- **Critical Architecture Change:** Fully migrated from global role assignment to multi-tenant role system
+- **Database Schema:**
+  - Added `tenantId` field to `roleRequests` table (required, foreign key to tenants)
+  - Updated unique constraint to `(userId, tenantId)` - allows multiple requests per user for different countries
+  - Approval now creates `userTenants` records instead of changing global `users.role`
+  - Users maintain global `role='user'` while tenant-specific roles stored in `userTenants`
+- **Backend Changes:**
+  - `POST /api/role-requests` accepts `countryCode` and maps to `tenantId`
+  - `GET /api/role-requests/my-request` returns array of all user's requests with tenant info
+  - `POST /api/admin/role-requests/:id/approve` creates `userTenants` record with tenant-specific role
+  - Approval logic no longer modifies `users.role` field
+- **Frontend Routing & Navigation:**
+  - **HomePage:** Checks `userTenants` FIRST before falling back to user-dashboard
+  - **AppSidebar:** Determines navigation from tenant roles, not global role
+  - **Flow:** Admin approves → userTenants created → user redirects to tenant-specific dashboard
+  - Users with approved tenant roles access `/agency`, `/supplier`, or `/country-manager/catalog`
+- **Multi-Country Support:**
+  - Users can apply for roles in multiple countries/tenants simultaneously
+  - Each country requires separate role request and approval
+  - Country dropdown populated from `/api/tenants` showing human-readable names
+  - Duplicate prevention: Cannot submit multiple requests for same (user, tenant)
+- **Testing:** End-to-end tests passing
+  - ✅ User applies for travel_agent role in Egypt → Admin approves → User accesses /agency dashboard
+  - ✅ Same user applies for hotel role in Jordan → Pending approval
+  - ✅ Tenant-specific routing works (approved users redirect to correct dashboard)
+  - ✅ Tenant-specific sidebar navigation displayed correctly
+  - ✅ Duplicate prevention enforced (400 error for same user+tenant)
+- **Admin Credentials:** admin@example.com / password123
+
 ### Enhanced Role Request System with Data Collection & Country Selection
 - **Database Update:** Added `data` jsonb field to `roleRequests` table to store role-specific information
 - **User Dashboard Enhancements:**
