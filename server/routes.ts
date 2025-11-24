@@ -1074,6 +1074,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Combine all excluded user IDs and remove duplicates
       const excludedUserIds = Array.from(new Set([...usersWithTenantRole, ...existingTeamMembers, ...pendingInvitations]));
+      
+      console.log('[DEBUG] Available users exclusions:', {
+        totalWithTenantRoles: usersWithTenantRole.length,
+        totalActiveTeamMembers: existingTeamMembers.length,
+        totalPendingInvitations: pendingInvitations.length,
+        totalExcluded: excludedUserIds.length
+      });
 
       // Get available users - only normal users (no tenant roles, no active memberships, no pending invitations)
       const availableUsers = excludedUserIds.length > 0
