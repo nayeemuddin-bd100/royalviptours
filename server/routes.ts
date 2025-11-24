@@ -250,14 +250,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         requestType: z.enum(["travel_agent", "transport", "hotel", "guide", "sight"]),
       }).parse(req.body);
 
-      // Check if user already has a pending/approved request
+      // Check if user already has a pending request
       const [existing] = await db
         .select()
         .from(roleRequests)
-        .where(eq(roleRequests.userId, req.user!.id));
+        .where(and(
+          eq(roleRequests.userId, req.user!.id),
+          eq(roleRequests.status, "pending")
+        ));
 
       if (existing) {
-        return res.status(400).json({ message: "You already have an active role request" });
+        return res.status(400).json({ message: "You already have a pending role request" });
       }
 
       const [request] = await db

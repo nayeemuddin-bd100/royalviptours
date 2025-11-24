@@ -5,7 +5,7 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Enums
-export const userRoleEnum = pgEnum("user_role", ["admin", "user"]);
+export const userRoleEnum = pgEnum("user_role", ["admin", "user", "travel_agent", "transport", "hotel", "guide", "sight"]);
 export const userStatusEnum = pgEnum("user_status", ["pending", "active", "suspended"]);
 export const tenantRoleEnum = pgEnum("tenant_role", ["travel_agent", "country_manager", "transport", "hotel", "guide", "sight"]);
 export const tenantStatusEnum = pgEnum("tenant_status", ["active", "inactive"]);
