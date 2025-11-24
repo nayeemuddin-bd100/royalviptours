@@ -28,18 +28,21 @@ export default function HomePage() {
   useEffect(() => {
     if (!user) return;
 
-    // If normal user (role === 'user'), redirect to user dashboard
-    if (user.role === 'user') {
-      setLocation('/user-dashboard');
-      return;
-    }
-
     // If admin, stay on home page
     if (user.role === 'admin') {
       return;
     }
 
+    // For non-admin users, check tenant roles first
     if (!userTenants) return;
+
+    // Check if user has travel agent role
+    const hasAgentRole = userTenants.some((ut) => ut.tenantRole === 'travel_agent');
+    
+    if (hasAgentRole) {
+      setLocation('/agency');
+      return;
+    }
 
     // Check if user has supplier role (transport, hotel, guide, sight)
     const hasSupplierRole = userTenants.some((ut) => 
@@ -59,13 +62,8 @@ export default function HomePage() {
       return;
     }
 
-    // Check if user has travel agent role
-    const hasAgentRole = userTenants.some((ut) => ut.tenantRole === 'travel_agent');
-    
-    if (hasAgentRole) {
-      setLocation('/agency');
-      return;
-    }
+    // If no tenant roles found, redirect to user dashboard
+    setLocation('/user-dashboard');
   }, [user, userTenants, setLocation]);
 
   return (

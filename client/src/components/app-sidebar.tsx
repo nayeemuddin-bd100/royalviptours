@@ -124,18 +124,13 @@ export function AppSidebar() {
       return adminItems;
     }
 
-    // Normal users (not yet approved for any role) only see Dashboard
-    if (user.role === "user") {
-      return normalUserItems;
-    }
-
     // Wait for tenant data to load before determining navigation for non-admin users
     // This prevents showing the wrong menu items during the loading phase
     if (isLoadingTenants) {
       return [];
     }
 
-    // Check for specialized roles
+    // Check tenant roles first (multi-tenant architecture)
     if (userTenants && userTenants.length > 0) {
       // Check if user has travel agent role
       const hasTravelAgentRole = userTenants.some((ut) => ut.tenantRole === 'travel_agent');
@@ -158,7 +153,7 @@ export function AppSidebar() {
       }
     }
     
-    // Default to normal user navigation
+    // Default to normal user navigation (no tenant roles yet)
     return normalUserItems;
   };
 
