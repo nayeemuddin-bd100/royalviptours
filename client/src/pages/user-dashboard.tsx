@@ -159,6 +159,9 @@ export default function UserDashboard() {
     createRequestMutation.mutate(formData);
   };
 
+  // Check if user has any pending requests
+  const hasPendingRequest = roleRequests.some((req: any) => req.status === 'pending');
+
   if (requestLoading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
@@ -250,14 +253,21 @@ export default function UserDashboard() {
       {/* Role Selection Section */}
       <div>
           <h2 className="text-xl font-semibold mb-4">Select Your Role</h2>
+          {hasPendingRequest && (
+            <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="text-sm text-yellow-800">
+                You have a pending role request. Please wait for it to be processed before applying for another role.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {roles.map((role) => {
               const Icon = role.icon;
               return (
                 <Card
                   key={role.id}
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => handleRoleSelect(role.id)}
+                  className={`transition-shadow ${!hasPendingRequest ? 'cursor-pointer hover:shadow-md' : 'opacity-60'}`}
+                  onClick={() => !hasPendingRequest && handleRoleSelect(role.id)}
                   data-testid={`card-role-${role.id}`}
                 >
                   <CardHeader>
@@ -275,9 +285,11 @@ export default function UserDashboard() {
                     <Button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleRoleSelect(role.id);
+                        if (!hasPendingRequest) {
+                          handleRoleSelect(role.id);
+                        }
                       }}
-                      disabled={createRequestMutation.isPending}
+                      disabled={createRequestMutation.isPending || hasPendingRequest}
                       data-testid={`button-apply-${role.id}`}
                     >
                       {createRequestMutation.isPending ? "Applying..." : "Apply for Role"}
