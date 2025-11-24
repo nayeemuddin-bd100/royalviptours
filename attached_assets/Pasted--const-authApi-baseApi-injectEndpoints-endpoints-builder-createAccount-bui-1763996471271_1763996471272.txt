@@ -1,0 +1,82 @@
+
+const authApi = baseApi.injectEndpoints({
+    endpoints: (builder) => ({
+        createAccount: builder.mutation({
+            query: (credentials) => ({
+                url: "/api/v1/b2c/register",
+                method: "POST",
+                body: credentials,
+            }),
+        }),
+        login: builder.mutation({
+            query: (credentials) => ({
+                url: "/api/v1/b2c/login",
+                method: "POST",
+                body: credentials,
+            }),
+            invalidatesTags: ["user"],
+        }),
+        verifyEmailOTP: builder.mutation({
+            query: (credentials) => ({
+                url: "api/v1/verify-email",
+                method: "POST",
+                body: credentials,
+                invalidatesTags: ["user"],
+            }),
+        }),
+        resendOTP: builder.mutation({
+            query: (email) => ({
+                url: "/api/v1/resend-verification-email",
+                method: "POST",
+                body: email,
+            }),
+        }),
+        requestResetPassword: builder.mutation({
+            query: (credentials) => ({
+                url: "/api/v1/request-password-reset",
+                method: "POST",
+                body: credentials,
+            }),
+        }),
+        verifyResetOTP: builder.mutation({
+            query: (credentials) => ({
+                url: "/api/v1/validate-otp",
+                method: "POST",
+                body: credentials,
+            }),
+        }),
+        changePassword: builder.mutation({
+            query: (credentials) => ({
+                url: "/api/v1/reset-password",
+                method: "POST",
+                body: credentials,
+            }),
+        }),
+        logout: builder.mutation({
+            query: () => ({
+                url: "/api/v1/logout",
+                method: "POST",
+            }),
+            invalidatesTags: ["user"],
+        }),
+        googleLogin: builder.mutation({
+            query: (params) => ({
+                url: "/api/v1/auth/google/initiate",
+                method: "POST",
+                body: params,
+            }),
+        }),
+    }),
+});
+
+export const {
+    useLoginMutation,
+    useCreateAccountMutation,
+    useVerifyEmailOTPMutation,
+    useResendOTPMutation,
+    useRequestResetPasswordMutation,
+    useVerifyResetOTPMutation,
+    useChangePasswordMutation,
+    useLogoutMutation,
+    useGoogleLoginMutation,
+} = authApi;

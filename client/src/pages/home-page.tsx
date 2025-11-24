@@ -19,7 +19,7 @@ export default function HomePage() {
   const [, setLocation] = useLocation();
 
   // Fetch user's tenant assignments to determine role
-  const { data: userTenants } = useQuery<UserTenant[]>({
+  const { data: userTenants = [], isLoading } = useQuery<UserTenant[]>({
     queryKey: ['/api/user/tenants'],
     enabled: !!user && user.role !== 'admin',
   });
@@ -33,8 +33,8 @@ export default function HomePage() {
       return;
     }
 
-    // For non-admin users, check tenant roles first
-    if (!userTenants) return;
+    // Wait for query to finish loading before redirecting
+    if (isLoading) return;
 
     // Check if user has travel agent role
     const hasAgentRole = userTenants.some((ut) => ut.tenantRole === 'travel_agent');
@@ -64,7 +64,7 @@ export default function HomePage() {
 
     // If no tenant roles found, redirect to user dashboard
     setLocation('/user-dashboard');
-  }, [user, userTenants, setLocation]);
+  }, [user, userTenants, setLocation, isLoading]);
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
