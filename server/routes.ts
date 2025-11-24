@@ -6,6 +6,7 @@ import {
   transportCompanies, transportProducts, fleets, hotels, roomTypes, mealPlans, hotelRates,
   tourGuides, sights, itineraries, itineraryDays, itineraryEvents, 
   rfqs, rfqSegments, quotes, agencies, agencyContacts, agencyAddresses, auditLogs, roleRequests,
+  agencyInvitations, agencyTeamMembers,
   insertUserSchema, insertTenantSchema, insertCitySchema, insertAirportSchema,
   insertEventCategorySchema, insertAmenitySchema, insertTransportCompanySchema,
   insertTransportProductSchema, insertHotelSchema, insertRoomTypeSchema,
@@ -13,7 +14,7 @@ import {
   insertSightSchema, insertItinerarySchema, insertItineraryEventSchema,
   insertRfqSchema, insertAgencySchema, insertRoleRequestSchema, registerSchema
 } from "@shared/schema";
-import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, desc, sql, inArray, notInArray } from "drizzle-orm";
 import { hashPassword, comparePassword, generateAccessToken, generateRefreshToken, verifyRefreshToken, revokeRefreshToken, revokeAllUserTokens, verifyToken, requireAuth, requireRole, requireTenantRole, requireAgencyContact, getAgencyIdForUser, type AuthRequest } from "./lib/auth";
 import { logAudit } from "./lib/audit";
 import { z } from "zod";
@@ -108,6 +109,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (user.status !== "active") {
         return res.status(403).json({ message: "Account is not active" });
+      }
+
+      // Check if user is a deactivated team member
+      const [deactivatedMembership] = await db
+        .select()
+        .from(agencyTeamMembers)
+        .where(and(
+          eq(agencyTeamMembers.userId, user.id),
+          eq(agencyTeamMembers.isActive, false)
+        ))
+        .limit(1);
+
+      if (deactivatedMembership) {
+        return res.status(403).json({ 
+          message: "Your account has been deactivated by your agency. Please contact them for assistance." 
+        });
       }
 
       // Update last login
@@ -1005,6 +1022,350 @@ export async function registerRoutes(app: Express): Promise<Server> {
         eq(agencyAddresses.agencyId, agencyId)
       ));
       res.json({ message: "Address deleted" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // ===== Agency Team Member Management =====
+
+  // Get available users (users without tenant role in current tenant)
+  app.get("/api/agency/available-users", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
+
+      // Get agency to find tenantId
+      const [agency] = await db.select().from(agencies).where(eq(agencies.id, agencyId));
+      if (!agency) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
+
+      // Get all users who don't have a tenant role in this tenant
+      // and are not already team members or have pending invitations
+      const usersWithTenantRole = db
+        .select({ userId: userTenants.userId })
+        .from(userTenants)
+        .where(eq(userTenants.tenantId, agency.tenantId));
+
+      const existingTeamMembers = db
+        .select({ userId: agencyTeamMembers.userId })
+        .from(agencyTeamMembers)
+        .where(eq(agencyTeamMembers.agencyId, agencyId));
+
+      const pendingInvitations = db
+        .select({ userId: agencyInvitations.userId })
+        .from(agencyInvitations)
+        .where(and(
+          eq(agencyInvitations.agencyId, agencyId),
+          eq(agencyInvitations.status, "pending")
+        ));
+
+      const availableUsers = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role
+        })
+        .from(users)
+        .where(and(
+          eq(users.status, "active"),
+          notInArray(users.id, usersWithTenantRole),
+          notInArray(users.id, existingTeamMembers),
+          notInArray(users.id, pendingInvitations)
+        ));
+
+      res.json(availableUsers);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Send team member invitation
+  app.post("/api/agency/team/invitations", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
+
+      const schema = z.object({
+        userId: z.string(),
+        message: z.string().optional()
+      });
+
+      const data = schema.parse(req.body);
+
+      // Get agency to find tenantId
+      const [agency] = await db.select().from(agencies).where(eq(agencies.id, agencyId));
+      if (!agency) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
+
+      // Check if user already has a tenant role
+      const [existingTenantRole] = await db
+        .select()
+        .from(userTenants)
+        .where(and(
+          eq(userTenants.userId, data.userId),
+          eq(userTenants.tenantId, agency.tenantId)
+        ));
+
+      if (existingTenantRole) {
+        return res.status(400).json({ message: "User already has a role in this country" });
+      }
+
+      // Check if user is already a team member
+      const [existingMember] = await db
+        .select()
+        .from(agencyTeamMembers)
+        .where(and(
+          eq(agencyTeamMembers.agencyId, agencyId),
+          eq(agencyTeamMembers.userId, data.userId)
+        ));
+
+      if (existingMember) {
+        return res.status(400).json({ message: "User is already a team member" });
+      }
+
+      // Check for existing pending invitation
+      const [existingInvitation] = await db
+        .select()
+        .from(agencyInvitations)
+        .where(and(
+          eq(agencyInvitations.agencyId, agencyId),
+          eq(agencyInvitations.userId, data.userId),
+          eq(agencyInvitations.status, "pending")
+        ));
+
+      if (existingInvitation) {
+        return res.status(400).json({ message: "Invitation already sent to this user" });
+      }
+
+      // Create invitation (expires in 7 days)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      const [invitation] = await db.insert(agencyInvitations).values({
+        agencyId,
+        userId: data.userId,
+        tenantId: agency.tenantId,
+        invitedBy: req.user!.id,
+        message: data.message,
+        expiresAt,
+        status: "pending"
+      }).returning();
+
+      res.json(invitation);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Get team members
+  app.get("/api/agency/team/members", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
+
+      const members = await db
+        .select({
+          id: agencyTeamMembers.id,
+          userId: agencyTeamMembers.userId,
+          userName: users.name,
+          userEmail: users.email,
+          isActive: agencyTeamMembers.isActive,
+          joinedAt: agencyTeamMembers.joinedAt,
+          deactivatedAt: agencyTeamMembers.deactivatedAt,
+        })
+        .from(agencyTeamMembers)
+        .leftJoin(users, eq(agencyTeamMembers.userId, users.id))
+        .where(eq(agencyTeamMembers.agencyId, agencyId))
+        .orderBy(desc(agencyTeamMembers.joinedAt));
+
+      res.json(members);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Toggle team member active status
+  app.patch("/api/agency/team/members/:id/toggle-active", requireAuth, requireAgencyContact, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const agencyId = await getAgencyIdForUser(
+        req.user!.id,
+        (req.user as any).userType,
+        (req.user as any).agencyId
+      );
+
+      if (!agencyId) {
+        return res.status(404).json({ message: "Agency not found" });
+      }
+
+      const [member] = await db
+        .select()
+        .from(agencyTeamMembers)
+        .where(and(
+          eq(agencyTeamMembers.id, id),
+          eq(agencyTeamMembers.agencyId, agencyId)
+        ));
+
+      if (!member) {
+        return res.status(404).json({ message: "Team member not found" });
+      }
+
+      const newStatus = !member.isActive;
+      const [updated] = await db
+        .update(agencyTeamMembers)
+        .set({
+          isActive: newStatus,
+          deactivatedAt: newStatus ? null : new Date()
+        })
+        .where(eq(agencyTeamMembers.id, id))
+        .returning();
+
+      res.json(updated);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // User endpoints for invitations
+
+  // Get user's pending invitations
+  app.get("/api/user/invitations", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const userId = req.user!.id;
+
+      const invitations = await db
+        .select({
+          id: agencyInvitations.id,
+          agencyId: agencyInvitations.agencyId,
+          agencyName: agencies.legalName,
+          agencyTradeName: agencies.tradeName,
+          message: agencyInvitations.message,
+          invitedByName: users.name,
+          invitedByEmail: users.email,
+          status: agencyInvitations.status,
+          expiresAt: agencyInvitations.expiresAt,
+          createdAt: agencyInvitations.createdAt
+        })
+        .from(agencyInvitations)
+        .leftJoin(agencies, eq(agencyInvitations.agencyId, agencies.id))
+        .leftJoin(users, eq(agencyInvitations.invitedBy, users.id))
+        .where(and(
+          eq(agencyInvitations.userId, userId),
+          eq(agencyInvitations.status, "pending")
+        ))
+        .orderBy(desc(agencyInvitations.createdAt));
+
+      res.json(invitations);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Accept invitation
+  app.post("/api/user/invitations/:id/approve", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      const [invitation] = await db
+        .select()
+        .from(agencyInvitations)
+        .where(and(
+          eq(agencyInvitations.id, id),
+          eq(agencyInvitations.userId, userId),
+          eq(agencyInvitations.status, "pending")
+        ));
+
+      if (!invitation) {
+        return res.status(404).json({ message: "Invitation not found" });
+      }
+
+      // Check if invitation has expired
+      if (new Date() > invitation.expiresAt) {
+        await db
+          .update(agencyInvitations)
+          .set({ status: "expired" })
+          .where(eq(agencyInvitations.id, id));
+        return res.status(400).json({ message: "Invitation has expired" });
+      }
+
+      // Create team member record
+      const [teamMember] = await db.insert(agencyTeamMembers).values({
+        agencyId: invitation.agencyId,
+        userId: invitation.userId,
+        tenantId: invitation.tenantId,
+        addedBy: invitation.invitedBy,
+        isActive: true
+      }).returning();
+
+      // Update invitation status
+      await db
+        .update(agencyInvitations)
+        .set({
+          status: "accepted",
+          respondedAt: new Date()
+        })
+        .where(eq(agencyInvitations.id, id));
+
+      res.json({ message: "Invitation accepted", teamMember });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Reject invitation
+  app.post("/api/user/invitations/:id/reject", requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      const [invitation] = await db
+        .select()
+        .from(agencyInvitations)
+        .where(and(
+          eq(agencyInvitations.id, id),
+          eq(agencyInvitations.userId, userId),
+          eq(agencyInvitations.status, "pending")
+        ));
+
+      if (!invitation) {
+        return res.status(404).json({ message: "Invitation not found" });
+      }
+
+      await db
+        .update(agencyInvitations)
+        .set({
+          status: "rejected",
+          respondedAt: new Date()
+        })
+        .where(eq(agencyInvitations.id, id));
+
+      res.json({ message: "Invitation rejected" });
     } catch (error: any) {
       next(error);
     }

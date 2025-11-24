@@ -24,6 +24,7 @@ export const supplierTypeEnum = pgEnum("supplier_type", ["transport", "hotel", "
 export const segmentStatusEnum = pgEnum("segment_status", ["pending", "supplier_review", "supplier_proposed", "accepted", "rejected"]);
 export const roleRequestStatusEnum = pgEnum("role_request_status", ["pending", "approved", "rejected"]);
 export const roleRequestTypeEnum = pgEnum("role_request_type", ["travel_agent", "transport", "hotel", "guide", "sight"]);
+export const invitationStatusEnum = pgEnum("invitation_status", ["pending", "accepted", "rejected", "expired"]);
 export const auditActionEnum = pgEnum("audit_action", [
   "user_created", "user_updated", "user_deleted", "user_login", "user_logout",
   "tenant_created", "tenant_updated", "tenant_deleted",
@@ -179,6 +180,35 @@ export const agencyFinanceDocs = pgTable("agency_finance_docs", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+export const agencyInvitations = pgTable("agency_invitations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agencyId: varchar("agency_id").notNull().references(() => agencies.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  invitedBy: varchar("invited_by").notNull().references(() => users.id),
+  status: invitationStatusEnum("status").notNull().default("pending"),
+  message: text("message"),
+  expiresAt: timestamp("expires_at").notNull(),
+  respondedAt: timestamp("responded_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueAgencyUser: unique().on(table.agencyId, table.userId)
+}));
+
+export const agencyTeamMembers = pgTable("agency_team_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agencyId: varchar("agency_id").notNull().references(() => agencies.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  addedBy: varchar("added_by").notNull().references(() => users.id),
+  isActive: boolean("is_active").notNull().default(true),
+  joinedAt: timestamp("joined_at").notNull().defaultNow(),
+  deactivatedAt: timestamp("deactivated_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueAgencyUser: unique().on(table.agencyId, table.userId)
+}));
 
 // === Tenant-scoped Catalog Tables ===
 
@@ -617,6 +647,8 @@ export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true, cre
 export const insertRefreshTokenSchema = createInsertSchema(refreshTokens).omit({ id: true, createdAt: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 export const insertRoleRequestSchema = createInsertSchema(roleRequests).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAgencyInvitationSchema = createInsertSchema(agencyInvitations).omit({ id: true, createdAt: true });
+export const insertAgencyTeamMemberSchema = createInsertSchema(agencyTeamMembers).omit({ id: true, createdAt: true });
 
 // Registration schema
 export const registerSchema = z.object({
@@ -676,3 +708,7 @@ export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type RoleRequest = typeof roleRequests.$inferSelect;
 export type InsertRoleRequest = z.infer<typeof insertRoleRequestSchema>;
+export type AgencyInvitation = typeof agencyInvitations.$inferSelect;
+export type InsertAgencyInvitation = z.infer<typeof insertAgencyInvitationSchema>;
+export type AgencyTeamMember = typeof agencyTeamMembers.$inferSelect;
+export type InsertAgencyTeamMember = z.infer<typeof insertAgencyTeamMemberSchema>;
