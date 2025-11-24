@@ -6,14 +6,15 @@ Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline gro
 
 ## Recent Changes (Nov 24, 2025 - Latest)
 
-### Enhanced Role Request System with Data Collection
+### Enhanced Role Request System with Data Collection & Country Selection
 - **Database Update:** Added `data` jsonb field to `roleRequests` table to store role-specific information
 - **User Dashboard Enhancements:**
   - Added "Request History" section showing current request status (pending/approved/rejected)
   - Displays submitted data from user's role application
-  - Modal forms for collecting necessary information:
-    - **Travel Agency Modal:** Legal Name, Trade Name, Country, Type, Website, Description
-    - **Supplier Modal:** Country, Business Name, Email, Phone, Description
+  - Modal forms for collecting necessary information with:
+    - **Travel Agency Form:** Legal Name, Trade Name, Country (dropdown), Type, Website, Description
+    - **Supplier Form:** Country (dropdown), Business Name, Email, Phone, Description
+  - Country field populates from tenants API and displays country names (not codes)
   - Users can cancel pending requests or delete rejected requests to reapply
 - **Admin Page Improvements:**
   - Admin can now see submitted data for each role request
@@ -23,10 +24,16 @@ Royal VIP Tours is a multi-tenant B2B travel platform designed to streamline gro
 - **Backend API Updates:**
   - `POST /api/role-requests` now accepts optional `data` field with form information
   - `GET /api/admin/role-requests` returns the submitted `data` field for display
+  - `GET /api/tenants` endpoint used to fetch available countries
+- **Frontend Enhancements:**
+  - Country input converted to Select component fetching from tenants API
+  - Displays human-readable country names instead of country codes
+  - Both Travel Agency and Supplier forms show country dropdown
 - **Workflow:**
-  - User selects role → Opens modal with role-specific form → Submits with data
+  - User selects role → Opens modal with role-specific form → Selects country from dropdown → Submits with data
   - Admin reviews request and submitted data → Approves/Rejects with optional notes
   - User can see submission status and feedback in dashboard
+- **All 7 E2E Tests Passing:** Registration, Travel Agency Request, Supplier Request, Admin Views, Admin Approves, Admin Rejects, User Cancels
 
 ## Previous Session Changes (Nov 24, 2025)
 
