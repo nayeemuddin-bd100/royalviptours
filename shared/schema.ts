@@ -112,6 +112,7 @@ export const userTenants = pgTable("user_tenants", {
 
 export const agencies = pgTable("agencies", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
   legalName: text("legal_name").notNull(),
   tradeName: text("trade_name"),
   type: agencyTypeEnum("type"),
@@ -609,8 +610,8 @@ export const insertSightSchema = createInsertSchema(sights).omit({ id: true, ten
 export const insertItinerarySchema = createInsertSchema(itineraries).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertItineraryEventSchema = createInsertSchema(itineraryEvents).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertRfqSchema = createInsertSchema(rfqs).omit({ id: true, tenantId: true, createdAt: true, updatedAt: true });
-export const insertRfqSegmentSchema = createInsertSchema(rfqSegments).omit({ id: true, tenantId: true, createdAt: true, updatedAt: true });
-export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true, tenantId: true, createdAt: true, updatedAt: true });
+export const insertRfqSegmentSchema = createInsertSchema(rfqSegments).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Insert schemas
 export const insertRefreshTokenSchema = createInsertSchema(refreshTokens).omit({ id: true, createdAt: true });

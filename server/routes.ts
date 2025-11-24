@@ -422,6 +422,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
         }
 
+        // Auto-create agency for travel_agent role
+        if (request.requestType === 'travel_agent') {
+          // Check if agency already exists for this user in this tenant
+          const [existingAgency] = await tx
+            .select()
+            .from(agencies)
+            .where(and(
+              eq(agencies.travelAgentId, request.userId),
+              eq(agencies.tenantId, request.tenantId)
+            ));
+
+          if (!existingAgency) {
+            // Get tenant name as fallback if country not provided in request
+            const [tenant] = await tx
+              .select()
+              .from(tenants)
+              .where(eq(tenants.id, request.tenantId));
+
+            await tx.insert(agencies).values({
+              tenantId: request.tenantId,
+              legalName: requestData.legalName || 'Unnamed Agency',
+              tradeName: requestData.tradeName || null,
+              type: requestData.type || null,
+              country: requestData.country || tenant?.name || 'Unknown',
+              website: requestData.website || null,
+              description: requestData.description || null,
+              travelAgentId: request.userId,
+            });
+          }
+        }
+
         // Auto-create supplier company for supplier roles
         const supplierRoles = ['transport', 'hotel', 'guide', 'sight'];
         
@@ -599,7 +630,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const [agency] = await db
-        .select()
+        .select({
+          id: agencies.id,
+          tenantId: agencies.tenantId,
+          legalName: agencies.legalName,
+          tradeName: agencies.tradeName,
+          type: agencies.type,
+          licenseNo: agencies.licenseNo,
+          yearEstablished: agencies.yearEstablished,
+          country: agencies.country,
+          website: agencies.website,
+          socialLinks: agencies.socialLinks,
+          logoUrl: agencies.logoUrl,
+          description: agencies.description,
+          services: agencies.services,
+          marketFocus: agencies.marketFocus,
+          destinations: agencies.destinations,
+          targetCustomer: agencies.targetCustomer,
+          avgMonthlyBookings: agencies.avgMonthlyBookings,
+          memberships: agencies.memberships,
+          travelAgentId: agencies.travelAgentId,
+          createdAt: agencies.createdAt,
+          updatedAt: agencies.updatedAt,
+        })
         .from(agencies)
         .where(eq(agencies.id, agencyId));
 
@@ -2591,6 +2644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const tenantName = tenantData.length > 0 ? tenantData[0].name : "Global";
         
         await db.insert(agencies).values({
+          tenantId: tenantId,
           legalName: `${name}'s Agency`,
           country: tenantName,
           travelAgentId: user.id,
@@ -2676,6 +2730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/agencies/register", async (req, res, next) => {
     try {
       const schema = z.object({
+        tenantId: z.string().min(1),
         legalName: z.string().min(1),
         tradeName: z.string().optional(),
         type: z.enum(["tour_operator", "travel_agency", "dmc", "other"]).optional(),
@@ -2710,6 +2765,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create agency
       const [agency] = await db.insert(agencies).values({
+        tenantId: data.tenantId,
         legalName: data.legalName,
         tradeName: data.tradeName || null,
         type: data.type || "travel_agency",
