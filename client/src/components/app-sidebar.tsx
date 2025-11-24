@@ -40,6 +40,7 @@ const adminItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Tenants", url: "/admin/tenants", icon: Globe },
   { title: "Users", url: "/admin/users", icon: Users },
+  { title: "Role Requests", url: "/admin/role-requests", icon: ClipboardList },
   { title: "Audit Logs", url: "/admin/audit", icon: FileText },
 ];
 
