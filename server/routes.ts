@@ -1048,25 +1048,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Agency not found" });
       }
 
-      // Get all users who don't have a tenant role in this tenant
-      // and are not already team members or have pending invitations
+      // Get all users who don't have a tenant role in ANY tenant
+      // and are not already team members of ANY agency or have pending invitations to ANY agency
+      // This enforces the exclusive membership rule: one user can only be part of one agency team
       const usersWithTenantRole = db
         .select({ userId: userTenants.userId })
-        .from(userTenants)
-        .where(eq(userTenants.tenantId, agency.tenantId));
+        .from(userTenants);
 
       const existingTeamMembers = db
         .select({ userId: agencyTeamMembers.userId })
-        .from(agencyTeamMembers)
-        .where(eq(agencyTeamMembers.agencyId, agencyId));
+        .from(agencyTeamMembers);
 
       const pendingInvitations = db
         .select({ userId: agencyInvitations.userId })
         .from(agencyInvitations)
-        .where(and(
-          eq(agencyInvitations.agencyId, agencyId),
-          eq(agencyInvitations.status, "pending")
-        ));
+        .where(eq(agencyInvitations.status, "pending"));
 
       const availableUsers = await db
         .select({
@@ -1115,44 +1111,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Agency not found" });
       }
 
-      // Check if user already has a tenant role
+      // Check if user already has a tenant role in ANY tenant
       const [existingTenantRole] = await db
         .select()
         .from(userTenants)
-        .where(and(
-          eq(userTenants.userId, data.userId),
-          eq(userTenants.tenantId, agency.tenantId)
-        ));
+        .where(eq(userTenants.userId, data.userId));
 
       if (existingTenantRole) {
-        return res.status(400).json({ message: "User already has a role in this country" });
+        return res.status(400).json({ message: "User already has a tenant role and cannot be a team member" });
       }
 
-      // Check if user is already a team member
+      // Check if user is already a team member of ANY agency (exclusive membership rule)
       const [existingMember] = await db
         .select()
         .from(agencyTeamMembers)
-        .where(and(
-          eq(agencyTeamMembers.agencyId, agencyId),
-          eq(agencyTeamMembers.userId, data.userId)
-        ));
+        .where(eq(agencyTeamMembers.userId, data.userId));
 
       if (existingMember) {
-        return res.status(400).json({ message: "User is already a team member" });
+        return res.status(400).json({ message: "User is already a team member of another agency" });
       }
 
-      // Check for existing pending invitation
+      // Check for existing pending invitation to ANY agency
       const [existingInvitation] = await db
         .select()
         .from(agencyInvitations)
         .where(and(
-          eq(agencyInvitations.agencyId, agencyId),
           eq(agencyInvitations.userId, data.userId),
           eq(agencyInvitations.status, "pending")
         ));
 
       if (existingInvitation) {
-        return res.status(400).json({ message: "Invitation already sent to this user" });
+        return res.status(400).json({ message: "User already has a pending invitation from another agency" });
       }
 
       // Create invitation (expires in 7 days)
@@ -1312,6 +1301,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .set({ status: "expired" })
           .where(eq(agencyInvitations.id, id));
         return res.status(400).json({ message: "Invitation has expired" });
+      }
+
+      // Verify user hasn't acquired a tenant role since invitation was sent
+      const [existingTenantRole] = await db
+        .select()
+        .from(userTenants)
+        .where(eq(userTenants.userId, userId));
+
+      if (existingTenantRole) {
+        return res.status(400).json({ message: "You now have a tenant role and cannot be a team member" });
+      }
+
+      // Verify user hasn't joined another agency since invitation was sent (exclusive membership rule)
+      const [existingMember] = await db
+        .select()
+        .from(agencyTeamMembers)
+        .where(eq(agencyTeamMembers.userId, userId));
+
+      if (existingMember) {
+        return res.status(400).json({ message: "You are already a team member of another agency" });
       }
 
       // Create team member record
