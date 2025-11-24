@@ -195,6 +195,7 @@ function ProfileTab() {
                   value={formData.country || ""}
                   onChange={(e) => setFormData({ ...formData, country: e.target.value })}
                   data-testid="input-country"
+                  disabled
                 />
               </div>
             </div>

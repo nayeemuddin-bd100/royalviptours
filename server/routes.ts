@@ -444,7 +444,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               tenantId: request.tenantId,
               legalName: requestData.legalName || 'Unnamed Agency',
               tradeName: requestData.tradeName || null,
-              type: requestData.type || null,
               country: requestData.country || tenant?.name || 'Unknown',
               website: requestData.website || null,
               description: requestData.description || null,
@@ -680,9 +679,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updateData = insertAgencySchema.partial().parse(req.body);
       
+      // Remove country and tenantId from updates - these are tied to tenant and cannot be changed
+      const { country, tenantId, travelAgentId, ...safeUpdateData } = updateData;
+      
       const [updatedAgency] = await db
         .update(agencies)
-        .set({ ...updateData, updatedAt: new Date() })
+        .set({ ...safeUpdateData, updatedAt: new Date() })
         .where(eq(agencies.id, agencyId))
         .returning();
 
@@ -3801,6 +3803,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const body = insertTransportProductSchema.partial().parse(req.body);
+      // Remove tenantId and transportCompanyId - these are immutable and tied to tenant
+      delete (body as any).tenantId;
+      delete (body as any).transportCompanyId;
       const [product] = await db.update(transportProducts).set(body).where(
         and(eq(transportProducts.id, id), eq(transportProducts.tenantId, req.tenantContext!.tenantId))
       ).returning();
@@ -3961,6 +3966,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const body = insertHotelSchema.partial().parse(req.body);
+      // Remove tenantId and ownerId - these are immutable and tied to tenant/user
+      delete (body as any).tenantId;
+      delete (body as any).ownerId;
       const [hotel] = await db.update(hotels).set({ ...body, updatedAt: new Date() }).where(
         and(eq(hotels.id, id), eq(hotels.tenantId, req.tenantContext!.tenantId))
       ).returning();
@@ -4119,6 +4127,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const body = insertTourGuideSchema.partial().parse(req.body);
+      // Remove tenantId and ownerId - these are immutable and tied to tenant/user
+      delete (body as any).tenantId;
+      delete (body as any).ownerId;
       const [guide] = await db.update(tourGuides).set({ ...body, updatedAt: new Date() }).where(
         and(eq(tourGuides.id, id), eq(tourGuides.tenantId, req.tenantContext!.tenantId))
       ).returning();
@@ -4188,6 +4199,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const body = insertSightSchema.partial().parse(req.body);
+      // Remove tenantId and ownerId - these are immutable and tied to tenant/user
+      delete (body as any).tenantId;
+      delete (body as any).ownerId;
       const [sight] = await db.update(sights).set({ ...body, updatedAt: new Date() }).where(
         and(eq(sights.id, id), eq(sights.tenantId, req.tenantContext!.tenantId))
       ).returning();
