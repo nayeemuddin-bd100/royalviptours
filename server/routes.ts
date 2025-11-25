@@ -1532,10 +1532,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User-created itineraries (for regular authenticated users)
+  // User-created itineraries (for regular authenticated users and team members)
   app.get("/api/itineraries", requireAuth, async (req: AuthRequest, res, next) => {
     try {
       const userId = req.user!.id;
+
+      // Check if user is a team member
+      const [teamMembership] = await db
+        .select()
+        .from(agencyTeamMembers)
+        .where(and(
+          eq(agencyTeamMembers.userId, userId),
+          eq(agencyTeamMembers.isActive, true)
+        ));
+
+      if (teamMembership) {
+        // Team members can see all itineraries from their agency
+        const agencyItineraries = await db
+          .select()
+          .from(itineraries)
+          .where(eq(itineraries.agencyId, teamMembership.agencyId))
+          .orderBy(desc(itineraries.createdAt));
+        
+        return res.json(agencyItineraries);
+      }
 
       // Get all itineraries created by this user
       const userItineraries = await db
@@ -1578,7 +1598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notes: z.string().optional(),
       }).parse(req.body);
 
-      // Verify user has access to this tenant
+      // Verify user has access to this tenant (via userTenants OR agencyTeamMembers)
       const userTenantAccess = await db
         .select()
         .from(userTenants)
@@ -1587,7 +1607,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eq(userTenants.tenantId, itineraryData.tenantId)
         ));
 
+      // If no direct tenant access, check team membership
+      let hasTeamMemberAccess = false;
+      let teamAgencyId: string | null = null;
       if (userTenantAccess.length === 0) {
+        const [teamMembership] = await db
+          .select()
+          .from(agencyTeamMembers)
+          .where(and(
+            eq(agencyTeamMembers.userId, userId),
+            eq(agencyTeamMembers.tenantId, itineraryData.tenantId),
+            eq(agencyTeamMembers.isActive, true)
+          ));
+        
+        if (teamMembership) {
+          hasTeamMemberAccess = true;
+          teamAgencyId = teamMembership.agencyId;
+        }
+      }
+
+      if (userTenantAccess.length === 0 && !hasTeamMemberAccess) {
         return res.status(403).json({ message: "You do not have access to this tenant" });
       }
 
@@ -1596,10 +1635,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const end = new Date(itineraryData.endDate);
       const dayCount = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-      // Get agency ID if user is a travel agent
-      const agencyId = await getAgencyIdForUser(userId, user.userType, user.agencyId);
+      // Get agency ID if user is a travel agent, or use team agency ID for team members
+      let agencyId = await getAgencyIdForUser(userId, user.userType, user.agencyId);
+      
+      // If user is a team member, use their team's agency ID
+      if (!agencyId && teamAgencyId) {
+        agencyId = teamAgencyId;
+      }
 
-      // Create itinerary with agencyId if user is a travel agent
+      // Create itinerary with agencyId if user is a travel agent or team member
       const [newItinerary] = await db
         .insert(itineraries)
         .values({
@@ -1636,13 +1680,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const userId = req.user!.id;
 
-      const [itinerary] = await db
+      // Check if user is a team member
+      const [teamMembership] = await db
         .select()
-        .from(itineraries)
+        .from(agencyTeamMembers)
         .where(and(
-          eq(itineraries.id, id),
-          eq(itineraries.createdByUserId, userId)
+          eq(agencyTeamMembers.userId, userId),
+          eq(agencyTeamMembers.isActive, true)
         ));
+
+      let itinerary;
+      
+      if (teamMembership) {
+        // Team members can view itineraries from their agency
+        [itinerary] = await db
+          .select()
+          .from(itineraries)
+          .where(and(
+            eq(itineraries.id, id),
+            eq(itineraries.agencyId, teamMembership.agencyId)
+          ));
+      } else {
+        // Regular users can only view itineraries they created
+        [itinerary] = await db
+          .select()
+          .from(itineraries)
+          .where(and(
+            eq(itineraries.id, id),
+            eq(itineraries.createdByUserId, userId)
+          ));
+      }
 
       if (!itinerary) {
         return res.status(404).json({ message: "Itinerary not found" });
@@ -1657,7 +1724,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eq(userTenants.tenantId, itinerary.tenantId)
         ));
 
-      if (userTenantAccess.length === 0) {
+      // Also check team membership for tenant access
+      const hasTeamAccess = teamMembership && teamMembership.tenantId === itinerary.tenantId;
+
+      if (userTenantAccess.length === 0 && !hasTeamAccess) {
         return res.status(403).json({ message: "You no longer have access to this tenant" });
       }
 
@@ -1685,20 +1755,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Event management for user-created itineraries
+  // Event management for user-created itineraries and team members
   app.post("/api/itineraries/:itineraryId/events", requireAuth, async (req: AuthRequest, res, next) => {
     try {
       const { itineraryId } = req.params;
       const userId = req.user!.id;
 
-      // Verify itinerary belongs to user
-      const [itinerary] = await db
+      // Check if user is a team member
+      const [teamMembership] = await db
         .select()
-        .from(itineraries)
+        .from(agencyTeamMembers)
         .where(and(
-          eq(itineraries.id, itineraryId),
-          eq(itineraries.createdByUserId, userId)
+          eq(agencyTeamMembers.userId, userId),
+          eq(agencyTeamMembers.isActive, true)
         ));
+
+      let itinerary;
+      
+      if (teamMembership) {
+        // Team members can add events to agency itineraries
+        [itinerary] = await db
+          .select()
+          .from(itineraries)
+          .where(and(
+            eq(itineraries.id, itineraryId),
+            eq(itineraries.agencyId, teamMembership.agencyId)
+          ));
+      } else {
+        // Regular users can only modify itineraries they created
+        [itinerary] = await db
+          .select()
+          .from(itineraries)
+          .where(and(
+            eq(itineraries.id, itineraryId),
+            eq(itineraries.createdByUserId, userId)
+          ));
+      }
 
       if (!itinerary) {
         return res.status(404).json({ message: "Itinerary not found" });
@@ -1713,7 +1805,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eq(userTenants.tenantId, itinerary.tenantId)
         ));
 
-      if (userTenantAccess.length === 0) {
+      // Also check team membership for tenant access
+      const hasTeamAccess = teamMembership && teamMembership.tenantId === itinerary.tenantId;
+
+      if (userTenantAccess.length === 0 && !hasTeamAccess) {
         return res.status(403).json({ message: "You no longer have access to this tenant" });
       }
 
@@ -1758,21 +1853,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { itineraryId, eventId } = req.params;
       const userId = req.user!.id;
+      let agencyId = (req.user as any).agencyId;
 
-      // Verify itinerary belongs to user
+      // Check if user is a team member and get their agency ID
+      const [teamMembership] = await db
+        .select()
+        .from(agencyTeamMembers)
+        .where(and(
+          eq(agencyTeamMembers.userId, userId),
+          eq(agencyTeamMembers.isActive, true)
+        ));
+      
+      if (teamMembership && !agencyId) {
+        agencyId = teamMembership.agencyId;
+      }
+
+      // Verify itinerary belongs to user or agency
+      const whereCondition = agencyId
+        ? and(
+            eq(itineraries.id, itineraryId),
+            or(
+              eq(itineraries.agencyId, agencyId),
+              eq(itineraries.createdByUserId, userId)
+            )
+          )
+        : and(eq(itineraries.id, itineraryId), eq(itineraries.createdByUserId, userId));
+
       const [itinerary] = await db
         .select()
         .from(itineraries)
-        .where(and(
-          eq(itineraries.id, itineraryId),
-          eq(itineraries.createdByUserId, userId)
-        ));
+        .where(whereCondition);
 
       if (!itinerary) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
       // Re-validate tenant membership (security: prevent access after removal)
+      // Check both userTenants and team membership
       const userTenantAccess = await db
         .select()
         .from(userTenants)
@@ -1781,7 +1898,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eq(userTenants.tenantId, itinerary.tenantId)
         ));
 
-      if (userTenantAccess.length === 0) {
+      // For team members, they access via their agency's tenant
+      const hasAccess = userTenantAccess.length > 0 || teamMembership;
+
+      if (!hasAccess) {
         return res.status(403).json({ message: "You no longer have access to this tenant" });
       }
 
@@ -1806,21 +1926,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { itineraryId, eventId } = req.params;
       const userId = req.user!.id;
+      let agencyId = (req.user as any).agencyId;
 
-      // Verify itinerary belongs to user
+      // Check if user is a team member and get their agency ID
+      const [teamMembership] = await db
+        .select()
+        .from(agencyTeamMembers)
+        .where(and(
+          eq(agencyTeamMembers.userId, userId),
+          eq(agencyTeamMembers.isActive, true)
+        ));
+      
+      if (teamMembership && !agencyId) {
+        agencyId = teamMembership.agencyId;
+      }
+
+      // Verify itinerary belongs to user or agency
+      const whereCondition = agencyId
+        ? and(
+            eq(itineraries.id, itineraryId),
+            or(
+              eq(itineraries.agencyId, agencyId),
+              eq(itineraries.createdByUserId, userId)
+            )
+          )
+        : and(eq(itineraries.id, itineraryId), eq(itineraries.createdByUserId, userId));
+
       const [itinerary] = await db
         .select()
         .from(itineraries)
-        .where(and(
-          eq(itineraries.id, itineraryId),
-          eq(itineraries.createdByUserId, userId)
-        ));
+        .where(whereCondition);
 
       if (!itinerary) {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
       // Re-validate tenant membership (security: prevent access after removal)
+      // Check both userTenants and team membership
       const userTenantAccess = await db
         .select()
         .from(userTenants)
@@ -1829,7 +1971,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eq(userTenants.tenantId, itinerary.tenantId)
         ));
 
-      if (userTenantAccess.length === 0) {
+      // For team members, they access via their agency's tenant
+      const hasAccess = userTenantAccess.length > 0 || teamMembership;
+
+      if (!hasAccess) {
         return res.status(403).json({ message: "You no longer have access to this tenant" });
       }
 
@@ -2168,17 +2313,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== RFQ Routes (Generic for both Agency and User) =====
 
-  // Generic RFQ creation endpoint - supports both agency contacts and regular users
+  // Generic RFQ creation endpoint - supports both agency contacts, regular users, and team members
   app.post("/api/rfqs", requireAuth, async (req: AuthRequest, res, next) => {
     try {
       const user = req.user as any;
       const userId = user.id;
-      const agencyId = user.agencyId;
+      let agencyId = user.agencyId;
       
       const { itineraryId, expiresAt } = z.object({
         itineraryId: z.string(),
         expiresAt: z.string().optional(),
       }).parse(req.body);
+
+      // Check if user is a team member and get their agency ID
+      const [teamMembership] = await db
+        .select()
+        .from(agencyTeamMembers)
+        .where(and(
+          eq(agencyTeamMembers.userId, userId),
+          eq(agencyTeamMembers.isActive, true)
+        ));
+      
+      if (teamMembership && !agencyId) {
+        agencyId = teamMembership.agencyId;
+      }
 
       // Critical security check: Verify itinerary belongs to THIS user/agency
       // For users with agencies, check both agency ownership AND user ownership (for legacy itineraries)
@@ -2557,12 +2715,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generic RFQ list endpoint - supports both agency contacts and regular users
+  // Generic RFQ list endpoint - supports agency contacts, regular users, and team members
   app.get("/api/rfqs", requireAuth, async (req: AuthRequest, res, next) => {
     try {
       const user = req.user as any;
       const userId = user.id;
-      const agencyId = user.agencyId;
+      let agencyId = user.agencyId;
+
+      // Check if user is a team member and get their agency ID
+      const [teamMembership] = await db
+        .select()
+        .from(agencyTeamMembers)
+        .where(and(
+          eq(agencyTeamMembers.userId, userId),
+          eq(agencyTeamMembers.isActive, true)
+        ));
+      
+      if (teamMembership && !agencyId) {
+        agencyId = teamMembership.agencyId;
+      }
 
       // Build where condition based on user type - filter by itinerary ownership
       const whereCondition = agencyId 
@@ -2598,13 +2769,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generic RFQ detail endpoint - supports both agency contacts and regular users
+  // Generic RFQ detail endpoint - supports agency contacts, regular users, and team members
   app.get("/api/rfqs/:id", requireAuth, async (req: AuthRequest, res, next) => {
     try {
       const { id } = req.params;
       const user = req.user as any;
       const userId = user.id;
-      const agencyId = user.agencyId;
+      let agencyId = user.agencyId;
+
+      // Check if user is a team member and get their agency ID
+      const [teamMembership] = await db
+        .select()
+        .from(agencyTeamMembers)
+        .where(and(
+          eq(agencyTeamMembers.userId, userId),
+          eq(agencyTeamMembers.isActive, true)
+        ));
+      
+      if (teamMembership && !agencyId) {
+        agencyId = teamMembership.agencyId;
+      }
 
       // Get the RFQ
       const [rfq] = await db
@@ -2626,7 +2810,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Itinerary not found" });
       }
 
-      // Check ownership: either agency contact OR regular user who created the itinerary
+      // Check ownership: either agency contact, team member, OR regular user who created the itinerary
       const isOwner = (agencyId && itinerary.agencyId === agencyId) || 
                       (!agencyId && itinerary.createdByUserId === userId);
 
