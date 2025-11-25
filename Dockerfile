@@ -6,6 +6,10 @@ FROM node:20-alpine AS builder
 # Set working directory
 WORKDIR /app
 
+# Ensure NODE_ENV is not set to production during build
+# This ensures npm ci installs devDependencies (vite, esbuild, etc.)
+ENV NODE_ENV=development
+
 # Copy package files
 COPY package*.json ./
 
@@ -27,7 +31,7 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install ALL dependencies (needed for db:push on first deploy)
+# Install ALL dependencies (needed for drizzle-kit db:push on startup)
 RUN npm ci && npm cache clean --force
 
 # Copy built files from builder
@@ -44,7 +48,7 @@ COPY start.sh ./start.sh
 # Make startup script executable
 RUN chmod +x /app/start.sh
 
-# Set environment
+# Set production environment variables
 ENV NODE_ENV=production
 ENV PORT=5000
 
