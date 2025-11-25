@@ -31,7 +31,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install ALL dependencies (needed for drizzle-kit db:push on startup)
+# Temporarily set NODE_ENV to ensure all dependencies (including devDependencies) are installed
+# This is needed because start.sh runs drizzle-kit (from devDependencies) for database migrations
+ENV NODE_ENV=development
 RUN npm ci && npm cache clean --force
 
 # Copy built files from builder
