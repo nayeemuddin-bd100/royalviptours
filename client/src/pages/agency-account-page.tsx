@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Building2, Users, MapPin, Plus, Edit, Trash2, Save, Mail, UserCheck, UserX, Send } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import type { Agency, AgencyContact, AgencyAddress } from "@shared/schema";
+import type { Agency, AgencyAddress } from "@shared/schema";
 
 export default function AgencyAccountPage() {
   const [activeTab, setActiveTab] = useState("profile");
@@ -26,12 +26,12 @@ export default function AgencyAccountPage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold" data-testid="text-page-title">Account Settings</h1>
         <p className="text-muted-foreground" data-testid="text-page-description">
-          Manage your agency profile, contacts, and business information
+          Manage your agency profile, team, and business information
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 max-w-2xl" data-testid="tabs-account">
+        <TabsList className="grid w-full grid-cols-3 max-w-xl" data-testid="tabs-account">
           <TabsTrigger value="profile" data-testid="tab-profile">
             <Building2 className="w-4 h-4 mr-2" />
             Profile
@@ -39,10 +39,6 @@ export default function AgencyAccountPage() {
           <TabsTrigger value="team" data-testid="tab-team">
             <Users className="w-4 h-4 mr-2" />
             Team
-          </TabsTrigger>
-          <TabsTrigger value="contacts" data-testid="tab-contacts">
-            <Users className="w-4 h-4 mr-2" />
-            Contacts
           </TabsTrigger>
           <TabsTrigger value="addresses" data-testid="tab-addresses">
             <MapPin className="w-4 h-4 mr-2" />
@@ -56,10 +52,6 @@ export default function AgencyAccountPage() {
 
         <TabsContent value="team">
           <TeamTab />
-        </TabsContent>
-
-        <TabsContent value="contacts">
-          <ContactsTab />
         </TabsContent>
 
         <TabsContent value="addresses">
@@ -327,312 +319,6 @@ function ProfileTab() {
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function ContactsTab() {
-  const { toast } = useToast();
-  const [isAddingContact, setIsAddingContact] = useState(false);
-  const [editingContact, setEditingContact] = useState<AgencyContact | null>(null);
-  const [formData, setFormData] = useState<Partial<AgencyContact & { password?: string }>>({});
-
-  const { data: contacts, isLoading } = useQuery<AgencyContact[]>({
-    queryKey: ["/api/agency/contacts"],
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: Partial<AgencyContact & { password: string }>) =>
-      apiRequest("POST", "/api/agency/contacts", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agency/contacts"] });
-      setIsAddingContact(false);
-      setFormData({});
-      toast({
-        title: "Contact added",
-        description: "New contact has been successfully added.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to add contact",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<AgencyContact> }) =>
-      apiRequest("PATCH", `/api/agency/contacts/${id}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agency/contacts"] });
-      setEditingContact(null);
-      setFormData({});
-      toast({
-        title: "Contact updated",
-        description: "Contact has been successfully updated.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to update contact",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) =>
-      apiRequest("DELETE", `/api/agency/contacts/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agency/contacts"] });
-      toast({
-        title: "Contact deleted",
-        description: "Contact has been successfully removed.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to delete contact",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleAdd = () => {
-    setFormData({});
-    setIsAddingContact(true);
-  };
-
-  const handleEdit = (contact: AgencyContact) => {
-    setFormData(contact);
-    setEditingContact(contact);
-  };
-
-  const handleSave = () => {
-    if (editingContact) {
-      updateMutation.mutate({ id: editingContact.id, data: formData });
-    } else {
-      createMutation.mutate(formData as any);
-    }
-  };
-
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this contact?")) {
-      deleteMutation.mutate(id);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-8 w-48" />
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-64 w-full" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <>
-      <Card data-testid="card-contacts">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Team Contacts</CardTitle>
-              <CardDescription>Manage your agency team members</CardDescription>
-            </div>
-            <Button onClick={handleAdd} data-testid="button-add-contact">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Contact
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {!contacts || contacts.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No contacts added yet</p>
-              <p className="text-sm">Add team members to collaborate on itineraries</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Mobile</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {contacts.map((contact) => (
-                  <TableRow key={contact.id} data-testid={`row-contact-${contact.id}`}>
-                    <TableCell className="font-medium" data-testid={`text-contact-name-${contact.id}`}>
-                      {contact.name}
-                    </TableCell>
-                    <TableCell data-testid={`text-contact-title-${contact.id}`}>
-                      {contact.title || "-"}
-                    </TableCell>
-                    <TableCell data-testid={`text-contact-email-${contact.id}`}>
-                      {contact.email}
-                    </TableCell>
-                    <TableCell data-testid={`text-contact-mobile-${contact.id}`}>
-                      {contact.mobile || "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={contact.status === "active" ? "default" : "secondary"}
-                        data-testid={`badge-contact-status-${contact.id}`}
-                      >
-                        {contact.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex gap-2 justify-end">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(contact)}
-                          data-testid={`button-edit-contact-${contact.id}`}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(contact.id)}
-                          data-testid={`button-delete-contact-${contact.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      <Dialog open={isAddingContact || editingContact !== null} onOpenChange={(open) => {
-        if (!open) {
-          setIsAddingContact(false);
-          setEditingContact(null);
-          setFormData({});
-        }
-      }}>
-        <DialogContent data-testid="dialog-contact-form">
-          <DialogHeader>
-            <DialogTitle>
-              {editingContact ? "Edit Contact" : "Add New Contact"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingContact 
-                ? "Update contact information" 
-                : "Add a new team member to your agency"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                value={formData.name || ""}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                data-testid="input-contact-name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
-              <Input
-                id="title"
-                value={formData.title || ""}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                data-testid="input-contact-title"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email || ""}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                data-testid="input-contact-email"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="mobile">Mobile</Label>
-              <Input
-                id="mobile"
-                value={formData.mobile || ""}
-                onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                data-testid="input-contact-mobile"
-              />
-            </div>
-            {!editingContact && (
-              <div className="space-y-2">
-                <Label htmlFor="password">Password *</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={formData.password || ""}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  data-testid="input-contact-password"
-                />
-              </div>
-            )}
-            {editingContact && (
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  value={formData.status || "active"}
-                  onValueChange={(value) => setFormData({ ...formData, status: value as any })}
-                >
-                  <SelectTrigger id="status" data-testid="select-contact-status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="suspended">Suspended</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsAddingContact(false);
-                setEditingContact(null);
-                setFormData({});
-              }}
-              data-testid="button-cancel-contact"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={createMutation.isPending || updateMutation.isPending}
-              data-testid="button-save-contact"
-            >
-              {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
   );
 }
 

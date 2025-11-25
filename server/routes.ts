@@ -920,19 +920,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Agency not found" });
       }
 
-      const addressData = z.object({
-        street: z.string().min(1),
-        city: z.string().min(1),
+      const addressSchema = z.object({
+        street: z.string().min(1, "Street is required"),
+        city: z.string().min(1, "City is required"),
         region: z.string().optional(),
         postalCode: z.string().optional(),
-        country: z.string().min(1),
-        googleMapsUrl: z.union([z.string().url(), z.string().max(0)]).optional(),
-      }).parse(req.body);
+        country: z.string().min(1, "Country is required"),
+        googleMapsUrl: z.union([z.string().url("Please enter a valid URL"), z.string().max(0)]).optional(),
+      });
+
+      const parseResult = addressSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const errorMessages = parseResult.error.errors.map(e => e.message).join(", ");
+        return res.status(400).json({ message: errorMessages });
+      }
 
       const [newAddress] = await db
         .insert(agencyAddresses)
         .values({
-          ...addressData,
+          ...parseResult.data,
           agencyId: agencyId,
         })
         .returning();
@@ -968,18 +974,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Address not found" });
       }
 
-      const updateData = z.object({
-        street: z.string().min(1).optional(),
-        city: z.string().min(1).optional(),
+      const updateSchema = z.object({
+        street: z.string().min(1, "Street is required").optional(),
+        city: z.string().min(1, "City is required").optional(),
         region: z.string().optional(),
         postalCode: z.string().optional(),
-        country: z.string().min(1).optional(),
-        googleMapsUrl: z.union([z.string().url(), z.string().max(0)]).optional(),
-      }).parse(req.body);
+        country: z.string().min(1, "Country is required").optional(),
+        googleMapsUrl: z.union([z.string().url("Please enter a valid URL"), z.string().max(0)]).optional(),
+      });
+
+      const parseResult = updateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const errorMessages = parseResult.error.errors.map(e => e.message).join(", ");
+        return res.status(400).json({ message: errorMessages });
+      }
 
       const [updatedAddress] = await db
         .update(agencyAddresses)
-        .set(updateData)
+        .set(parseResult.data)
         .where(and(
           eq(agencyAddresses.id, id),
           eq(agencyAddresses.agencyId, agencyId)
