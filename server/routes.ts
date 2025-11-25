@@ -65,6 +65,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
 
+  // ===== Health Check Route =====
+  app.get("/api/health", (req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   // ===== Authentication Routes =====
   
   app.post("/api/register", async (req, res, next) => {

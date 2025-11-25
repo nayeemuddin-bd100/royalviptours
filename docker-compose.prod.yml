@@ -1,0 +1,17 @@
+# Docker Compose for Production with External Database
+# This file is used when you have an external production database
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: "3.8"
+
+services:
+    app:
+        environment:
+            NODE_ENV: production
+            # Use DATABASE_URL from .env file pointing to your production database
+            # DATABASE_URL will be read from .env automatically
+        restart: always
+        # No dependency on local postgres since using external database
+
+# Remove local postgres service in production
+# Only the app will run, connecting to external database
