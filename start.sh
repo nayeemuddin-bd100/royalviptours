@@ -9,7 +9,7 @@ npm run db:push
 
 # Seed database with admin account and initial data
 echo "🌱 Seeding database..."
-tsx server/seed.ts
+npx tsx server/seed.ts
 
 echo "🌐 Starting application server..."
 

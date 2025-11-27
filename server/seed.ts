@@ -150,7 +150,7 @@ async function seed() {
   }
 
   // ===== GLOBAL USERS =====
-  console.log("📌 Creating Global Users");
+  console.log("📌 Creating Admin User");
   console.log("─────────────────────────");
   await createOrGetUser(
     adminEmail,
@@ -160,25 +160,11 @@ async function seed() {
     adminJobTitle
   );
 
-  const regularUser = await createOrGetUser(
-    "user@example.com",
-    "password123",
-    "user",
-    "Regular User",
-    "Travel Planner"
-  );
-
   // ===== TENANTS =====
   console.log("\n📌 Creating Tenants");
   console.log("─────────────────────────");
   const jordanTenant = await createOrGetTenant("JO", "Jordan", "JOD", "Asia/Amman");
   const egyptTenant = await createOrGetTenant("EG", "Egypt", "EGP", "Africa/Cairo");
-
-  // Grant travel agent access to all tenants (no specific role - just tenant access)
-  console.log("\n📌 Granting Travel Agent Tenant Access");
-  console.log("─────────────────────────");
-  await grantTenantAccess(regularUser.id, jordanTenant.id);
-  await grantTenantAccess(regularUser.id, egyptTenant.id);
 
   // ===== CREATE MEAL PLANS =====
   console.log("\n📌 Creating Meal Plans");
@@ -188,7 +174,23 @@ async function seed() {
   console.log("  Egypt Tenant:");
   await createMealPlansForTenant(egyptTenant.id);
 
-  // ===== JORDAN TENANT - SUPPLIERS & MANAGERS =====
+  // Only create test users in development mode
+  if (!isProduction) {
+    const regularUser = await createOrGetUser(
+      "user@example.com",
+      "password123",
+      "user",
+      "Regular User",
+      "Travel Planner"
+    );
+
+    // Grant travel agent access to all tenants
+    console.log("\n📌 Granting Travel Agent Tenant Access");
+    console.log("─────────────────────────");
+    await grantTenantAccess(regularUser.id, jordanTenant.id);
+    await grantTenantAccess(regularUser.id, egyptTenant.id);
+
+    // ===== JORDAN TENANT - SUPPLIERS & MANAGERS =====
   console.log("\n📌 Jordan Tenant - Users & Roles");
   console.log("─────────────────────────");
   
@@ -295,6 +297,7 @@ async function seed() {
     "Attractions Director"
   );
   await assignTenantRole(egyptSight.id, egyptTenant.id, "sight");
+  } // End of development-only user creation
 
   console.log("\n╔════════════════════════════════════════════════════════════════╗");
   console.log("║                  ✅ SEED COMPLETED SUCCESSFULLY!                ║");
@@ -302,29 +305,40 @@ async function seed() {
 
   console.log("📝 CREDENTIALS CREATED:\n");
 
-  console.log("🔐 GLOBAL ACCOUNTS:");
+  console.log("🔐 ADMIN ACCOUNT:");
   if (isProduction) {
     console.log(`   Admin: ${adminEmail} / [from .env ADMIN_PASSWORD]`);
   } else {
     console.log("   Admin: admin@example.com / password123");
   }
-  console.log("   Regular User: user@example.com / password123\n");
 
-  console.log("🇯🇴 JORDAN TENANT:");
-  console.log("   Country Manager: manager.jordan@example.com / password123");
-  console.log("   Transport Supplier: nayeem@test.com / password123");
-  console.log("   Hotel Supplier: hotel.amman@example.com / password123");
-  console.log("   Guide Supplier: guide.jordan@example.com / password123");
-  console.log("   Sight Supplier: sight.jordan@example.com / password123\n");
+  console.log("\n🌍 TENANTS:");
+  console.log("   Jordan (JO) - Currency: JOD");
+  console.log("   Egypt (EG) - Currency: EGP");
 
-  console.log("🇪🇬 EGYPT TENANT:");
-  console.log("   Country Manager: manager.egypt@example.com / password123");
-  console.log("   Transport Supplier: transport.egypt@example.com / password123");
-  console.log("   Hotel Supplier: hotel.cairo@example.com / password123");
-  console.log("   Guide Supplier: guide.egypt@example.com / password123");
-  console.log("   Sight Supplier: sight.egypt@example.com / password123\n");
+  console.log("\n🍽️ MEAL PLANS:");
+  console.log("   RO, BB, HB, FB, AI (created for all tenants)");
 
-  console.log("📖 For detailed testing guide, see: demo-accounts.md\n");
+  if (!isProduction) {
+    console.log("\n🔐 TEST ACCOUNTS (Development Only):");
+    console.log("   Regular User: user@example.com / password123\n");
+
+    console.log("🇯🇴 JORDAN TENANT:");
+    console.log("   Country Manager: manager.jordan@example.com / password123");
+    console.log("   Transport Supplier: nayeem@test.com / password123");
+    console.log("   Hotel Supplier: hotel.amman@example.com / password123");
+    console.log("   Guide Supplier: guide.jordan@example.com / password123");
+    console.log("   Sight Supplier: sight.jordan@example.com / password123\n");
+
+    console.log("🇪🇬 EGYPT TENANT:");
+    console.log("   Country Manager: manager.egypt@example.com / password123");
+    console.log("   Transport Supplier: transport.egypt@example.com / password123");
+    console.log("   Hotel Supplier: hotel.cairo@example.com / password123");
+    console.log("   Guide Supplier: guide.egypt@example.com / password123");
+    console.log("   Sight Supplier: sight.egypt@example.com / password123\n");
+
+    console.log("📖 For detailed testing guide, see: demo-accounts.md\n");
+  }
 
   process.exit(0);
 }
