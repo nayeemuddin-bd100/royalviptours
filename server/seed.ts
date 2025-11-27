@@ -69,13 +69,13 @@ async function grantTenantAccess(userId: string, tenantId: string) {
       eq(userTenants.tenantId, tenantId)
     )
   );
-  
+
   if (!existing) {
-    console.log(`    Granting tenant access (no role)`);
+    console.log(`    Granting tenant access (travel_agent role)`);
     await db.insert(userTenants).values({
       userId: userId,
       tenantId: tenantId,
-      tenantRole: null
+      tenantRole: "travel_agent"
     });
   } else {
     console.log(`    Tenant access already granted`);
@@ -117,15 +117,47 @@ async function seed() {
   console.log("║            ROYAL VIP TOURS - DATABASE SEED SCRIPT               ║");
   console.log("╚════════════════════════════════════════════════════════════════╝\n");
 
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // ===== ADMIN CREDENTIALS =====
+  let adminEmail: string;
+  let adminPassword: string;
+  let adminName: string;
+  let adminJobTitle: string;
+
+  if (isProduction) {
+    // Production: Use environment variables
+    console.log("🏭 Running in PRODUCTION mode - using .env credentials\n");
+    adminEmail = process.env.ADMIN_EMAIL || '';
+    adminPassword = process.env.ADMIN_PASSWORD || '';
+    adminName = process.env.ADMIN_NAME || "Admin User";
+    adminJobTitle = process.env.ADMIN_JOB_TITLE || "System Administrator";
+
+    if (!adminEmail || !adminPassword) {
+      console.error("❌ ERROR: ADMIN_EMAIL and ADMIN_PASSWORD must be set in .env file for production");
+      console.error("   Please add these to your .env file:");
+      console.error("   ADMIN_EMAIL=your-admin-email@example.com");
+      console.error("   ADMIN_PASSWORD=your-secure-password");
+      process.exit(1);
+    }
+  } else {
+    // Development: Use default test credentials
+    console.log("🔧 Running in DEVELOPMENT mode - using test credentials\n");
+    adminEmail = "admin@example.com";
+    adminPassword = "password123";
+    adminName = "Admin User";
+    adminJobTitle = "System Administrator";
+  }
+
   // ===== GLOBAL USERS =====
   console.log("📌 Creating Global Users");
   console.log("─────────────────────────");
-  const adminUser = await createOrGetUser(
-    "admin@example.com",
-    "password123",
+  await createOrGetUser(
+    adminEmail,
+    adminPassword,
     "admin",
-    "Admin User",
-    "System Administrator"
+    adminName,
+    adminJobTitle
   );
 
   const regularUser = await createOrGetUser(
@@ -268,10 +300,14 @@ async function seed() {
   console.log("║                  ✅ SEED COMPLETED SUCCESSFULLY!                ║");
   console.log("╚════════════════════════════════════════════════════════════════╝\n");
 
-  console.log("📝 TEST CREDENTIALS CREATED:\n");
-  
+  console.log("📝 CREDENTIALS CREATED:\n");
+
   console.log("🔐 GLOBAL ACCOUNTS:");
-  console.log("   Admin: admin@example.com / password123");
+  if (isProduction) {
+    console.log(`   Admin: ${adminEmail} / [from .env ADMIN_PASSWORD]`);
+  } else {
+    console.log("   Admin: admin@example.com / password123");
+  }
   console.log("   Regular User: user@example.com / password123\n");
 
   console.log("🇯🇴 JORDAN TENANT:");
